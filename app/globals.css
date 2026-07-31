@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #fafafa;
+}
+
+/* Visible keyboard focus everywhere, on top of Tailwind's focus:ring
+   utilities used per-element — this is the fallback for anything
+   that doesn't opt into a custom ring. */
+:focus-visible {
+  outline: 2px solid #000000;
+  outline-offset: 2px;
+}

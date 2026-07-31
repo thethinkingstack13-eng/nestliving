@@ -1,0 +1,178 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+//
+// Converted for MongoDB. Key differences from the Postgres version:
+// - IDs use Mongo's native ObjectId (`@default(auto()) @map("_id") @db.ObjectId`)
+//   instead of `cuid()`.
+// - Foreign-key-style fields are typed `String @db.ObjectId`.
+// - Property <-> Amenity is now a native many-to-many via relation scalar
+//   lists on both sides — MongoDB doesn't need a separate join collection
+//   the way Postgres did, so the old `PropertyAmenity` model is removed.
+// - No `directUrl` — that was only needed for Postgres connection pooling.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------
+// ENUMS
+// ---------------------------------------------
+
+enum Role {
+  TENANT
+  OWNER
+  ADMIN
+}
+
+enum RoomType {
+  PRIVATE
+  SHARED
+}
+
+enum BookingStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+// ---------------------------------------------
+// MODELS
+// ---------------------------------------------
+
+model User {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  email     String   @unique
+  password  String
+  name      String?
+  role      Role     @default(TENANT)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Notification preferences -- gate which emails this user receives
+  emailOnBookingRequests     Boolean @default(true)
+  emailOnRoommateMatches     Boolean @default(true)
+  emailOnProductAnnouncements Boolean @default(true)
+
+  // Relations
+  tenantProfile   TenantProfile?
+  ownerProfile    OwnerProfile?
+  properties      Property[]       @relation("OwnerProperties")
+  bookingRequests BookingRequest[] @relation("TenantBookings")
+
+  @@map("users")
+}
+
+model TenantProfile {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String   @unique @db.ObjectId
+  fullName          String
+  phone             String?
+  bio               String?
+  budgetMin         Int?
+  budgetMax         Int?
+  preferredLocation String?
+  // Flexible JSON blob for lifestyle matching e.g.
+  // { smoking: false, pets: true, foodPreference: "veg", sleepSchedule: "early" }
+  lifestyleParams   Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("tenant_profiles")
+}
+
+model OwnerProfile {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId        String   @unique @db.ObjectId
+  phone         String
+  businessName  String
+  governmentId  String
+  city          String
+  address       String
+  agreedToTerms Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("owner_profiles")
+}
+
+model Property {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  ownerId     String   @db.ObjectId
+  title       String
+  description String?
+  address     String
+  city        String
+  state       String
+  isApproved  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner User @relation("OwnerProperties", fields: [ownerId], references: [id], onDelete: Cascade)
+  rooms Room[]
+
+  // Native many-to-many with Amenity (no join collection needed on Mongo)
+  amenityIds String[]  @db.ObjectId
+  amenities  Amenity[] @relation(fields: [amenityIds], references: [id])
+
+  @@index([city, state])
+  @@map("properties")
+}
+
+model Room {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  propertyId       String   @db.ObjectId
+  roomType         RoomType
+  totalBeds        Int
+  availableBeds    Int
+  rentPerMonth     Int
+  depositAmount    Int
+  availabilityDate DateTime
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  property        Property         @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  bookingRequests BookingRequest[]
+
+  @@index([propertyId])
+  @@map("rooms")
+}
+
+model Amenity {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String   @unique
+  icon      String?
+  createdAt DateTime @default(now())
+
+  propertyIds String[]   @db.ObjectId
+  properties  Property[] @relation(fields: [propertyIds], references: [id])
+
+  @@map("amenities")
+}
+
+model BookingRequest {
+  id         String        @id @default(auto()) @map("_id") @db.ObjectId
+  tenantId   String        @db.ObjectId
+  roomId     String        @db.ObjectId
+  status     BookingStatus @default(PENDING)
+  moveInDate DateTime
+  message    String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  tenant User @relation("TenantBookings", fields: [tenantId], references: [id], onDelete: Cascade)
+  room   Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([roomId])
+  @@map("booking_requests")
+}
