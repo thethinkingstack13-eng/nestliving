@@ -5,9 +5,9 @@ import { z } from 'zod';
 // ---------------------------------------------
 
 export const registerSchema = z.object({
-  fullName: z.string().min(2, 'Full name must be at least 2 characters'),
-  email: z.string().email('Enter a valid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
+  fullName: z.string().trim().min(2, 'Full name must be at least 2 characters').max(100),
+  email: z.string().trim().email('Enter a valid email address').max(254),
+  password: z.string().min(8, 'Password must be at least 8 characters').max(128),
   role: z.enum(['TENANT', 'OWNER'], {
     errorMap: () => ({ message: 'Select whether you are a tenant or an owner' }),
   }),
@@ -30,6 +30,8 @@ export const tenantOnboardingSchema = z
     smokingAllowed: z.boolean(),
     petsFriendly: z.boolean(),
     bio: z.string().max(500, 'Bio must be under 500 characters').optional(),
+    occupation: z.string().max(80).optional(),
+    avatarUrl: z.string().url().optional().or(z.literal('')),
   })
   .refine((data) => data.budgetMax >= data.budgetMin, {
     message: 'Max rent must be greater than or equal to min rent',
@@ -70,8 +72,8 @@ export type UpdateProfileValues = z.infer<typeof updateProfileSchema>;
 
 export const changePasswordSchema = z
   .object({
-    currentPassword: z.string().min(1, 'Enter your current password'),
-    newPassword: z.string().min(8, 'New password must be at least 8 characters'),
+    currentPassword: z.string().min(1, 'Enter your current password').max(128),
+    newPassword: z.string().min(8, 'New password must be at least 8 characters').max(128),
     confirmPassword: z.string().min(1, 'Re-enter your new password'),
   })
   .refine((data) => data.newPassword === data.confirmPassword, {
@@ -88,3 +90,29 @@ export const notificationPreferencesSchema = z.object({
 });
 
 export type NotificationPreferencesValues = z.infer<typeof notificationPreferencesSchema>;
+
+export const createPropertySchema = z.object({
+  title: z.string().trim().min(3).max(100),
+  description: z.string().trim().max(2000).optional(),
+  address: z.string().trim().min(5).max(200),
+  city: z.string().trim().min(2).max(100),
+  state: z.string().trim().min(2).max(100),
+  roomType: z.enum(['PRIVATE', 'SHARED']),
+  totalBeds: z.number().int().min(1).max(50),
+  rentPerMonth: z.number().int().positive().max(10_000_000),
+  depositAmount: z.number().int().nonnegative().max(100_000_000),
+  availabilityDate: z.string().datetime(),
+  genderPreference: z.enum(['MALE', 'FEMALE', 'ANY']),
+  amenities: z.array(z.string().trim().min(1).max(40)).max(20),
+  imageUrls: z.array(z.string().url()).min(1).max(8),
+});
+
+export const createBookingSchema = z.object({
+  roomId: z.string().regex(/^[a-f\d]{24}$/i),
+  moveInDate: z.string().datetime(),
+  message: z.string().trim().max(1000).optional(),
+});
+
+export const bookingDecisionSchema = z.object({
+  status: z.enum(['APPROVED', 'REJECTED']),
+});

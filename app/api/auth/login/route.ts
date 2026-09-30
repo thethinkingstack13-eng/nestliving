@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
+import { authConfigResponse, authRateLimitResponse } from '@/lib/auth-api';
 import {
   verifyPassword,
   createSessionToken,
@@ -10,11 +11,14 @@ import {
 } from '@/lib/auth';
 
 const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
+  email: z.string().trim().email().max(254),
+  password: z.string().min(1).max(128),
 });
 
 export async function POST(request: Request) {
+  const configError = authConfigResponse({ jwt: true });
+  if (configError) return configError;
+
   const body = await request.json().catch(() => null);
   const result = loginSchema.safeParse(body);
 
@@ -22,9 +26,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'Enter a valid email and password.' }, { status: 400 });
   }
 
-  const { email, password } = result.data;
+  const { password } = result.data;
+  const email = result.data.email.trim().toLowerCase();
+  const rateLimitError = await authRateLimitResponse(request, 'login', 10, 15 * 60 * 1000, email);
+  if (rateLimitError) return rateLimitError;
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  let user;
+  try {
+    user = await prisma.user.findUnique({ where: { email } });
+  } catch (error) {
+    console.error('Login database request failed:', error instanceof Error ? error.message : 'unknown error');
+    return NextResponse.json({ message: 'Login is unavailable. Configure DATABASE_URL and try again.' }, { status: 503 });
+  }
 
   // Deliberately vague error for both "no such user" and "wrong password" —
   // don't leak which one it was, that's an account-enumeration risk.
@@ -35,6 +48,9 @@ export async function POST(request: Request) {
   const passwordMatches = await verifyPassword(password, user.password);
   if (!passwordMatches) {
     return NextResponse.json({ message: 'Invalid email or password.' }, { status: 401 });
+  }
+  if (!user.emailVerifiedAt) {
+    return NextResponse.json({ message: 'This account is not verified. Use the email verification link to activate it.' }, { status: 403 });
   }
 
   const token = await createSessionToken({ userId: user.id, role: user.role });

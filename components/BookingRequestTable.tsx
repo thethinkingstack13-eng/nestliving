@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Check, X } from 'lucide-react';
 
-export type BookingStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type BookingStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 
 export interface BookingRequestRow {
   id: string;
@@ -11,7 +12,7 @@ export interface BookingRequestRow {
   tenantEmail: string;
   roomTitle: string;
   moveInDate: string; // ISO date string
-  compatibilityScore: number;
+  compatibilityScore?: number;
   status: BookingStatus;
   message?: string;
 }
@@ -26,6 +27,7 @@ const STATUS_STYLES: Record<BookingStatus, string> = {
   PENDING: 'border-amber-500 bg-amber-100 text-amber-800',
   APPROVED: 'border-emerald-500 bg-emerald-100 text-emerald-800',
   REJECTED: 'border-red-500 bg-red-100 text-red-700',
+  CANCELLED: 'border-neutral-400 bg-neutral-100 text-neutral-700',
 };
 
 export function StatusBadge({ status }: { status: BookingStatus }) {
@@ -56,14 +58,34 @@ function formatDate(iso: string): string {
 }
 
 export default function BookingRequestTable({ requests, onStatusChange }: BookingRequestTableProps) {
-  // Local copy so Approve/Reject reflect instantly in the UI even before
-  // a parent-owned API call resolves. Parent can still drive updates by
-  // re-rendering with new `requests` (e.g. after a refetch).
+  const router = useRouter();
   const [rows, setRows] = useState(requests);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const updateStatus = (id: string, status: BookingStatus) => {
-    setRows((prev) => prev.map((row) => (row.id === id ? { ...row, status } : row)));
-    onStatusChange?.(id, status);
+  const updateStatus = async (id: string, status: BookingStatus) => {
+    if (status === 'CANCELLED' || updatingId) return;
+    setUpdatingId(id);
+    setError(null);
+    try {
+      if (onStatusChange) {
+        await onStatusChange(id, status);
+      } else {
+        const response = await fetch(`/api/bookings/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status }),
+        });
+        const result = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(result?.message ?? 'Could not update the request.');
+      }
+      setRows((prev) => prev.map((row) => (row.id === id ? { ...row, status } : row)));
+      router.refresh();
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : 'Could not update the request.');
+    } finally {
+      setUpdatingId(null);
+    }
   };
 
   if (rows.length === 0) {
@@ -79,6 +101,7 @@ export default function BookingRequestTable({ requests, onStatusChange }: Bookin
 
   return (
     <div className="overflow-hidden border border-black bg-white">
+      {error && <p role="alert" className="border-b border-black bg-red-50 px-5 py-3 text-sm text-red-700">{error}</p>}
       {/* Desktop table */}
       <div className="hidden overflow-x-auto md:block">
         <table className="w-full border-collapse text-left text-sm">
@@ -128,9 +151,11 @@ export default function BookingRequestTable({ requests, onStatusChange }: Bookin
 
                 {/* Match % */}
                 <td className="border-l border-black px-5 py-4">
+                  {row.compatibilityScore != null && row.compatibilityScore > 0 && (
                   <span className="inline-flex items-center rounded-full border border-emerald-500 bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800 shadow-[0_0_8px_1px_rgba(16,185,129,0.45)]">
                     {row.compatibilityScore}% Match
                   </span>
+                  )}
                 </td>
 
                 {/* Status */}
@@ -144,6 +169,7 @@ export default function BookingRequestTable({ requests, onStatusChange }: Bookin
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
+                        disabled={updatingId !== null}
                         onClick={() => updateStatus(row.id, 'APPROVED')}
                         className="inline-flex items-center gap-1.5 rounded-full bg-black px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-neutral-800"
                       >
@@ -152,6 +178,7 @@ export default function BookingRequestTable({ requests, onStatusChange }: Bookin
                       </button>
                       <button
                         type="button"
+                        disabled={updatingId !== null}
                         onClick={() => updateStatus(row.id, 'REJECTED')}
                         className="inline-flex items-center gap-1.5 rounded-full border border-black bg-white px-4 py-2 text-xs font-bold text-black transition-colors hover:bg-neutral-100"
                       >
@@ -189,14 +216,15 @@ export default function BookingRequestTable({ requests, onStatusChange }: Bookin
             <p className="mt-3 text-sm">{row.roomTitle}</p>
             <p className="mt-1 text-xs text-neutral-500">Move-in: {formatDate(row.moveInDate)}</p>
 
-            <span className="mt-2 inline-flex items-center rounded-full border border-emerald-500 bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">
+            {row.compatibilityScore != null && row.compatibilityScore > 0 && <span className="mt-2 inline-flex items-center rounded-full border border-emerald-500 bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">
               {row.compatibilityScore}% Match
-            </span>
+            </span>}
 
-            {row.status === 'PENDING' && (
+              {row.status === 'PENDING' && (
               <div className="mt-4 flex items-center gap-2">
                 <button
                   type="button"
+                    disabled={updatingId !== null}
                   onClick={() => updateStatus(row.id, 'APPROVED')}
                   className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-black px-4 py-2 text-xs font-bold text-white"
                 >
@@ -205,6 +233,7 @@ export default function BookingRequestTable({ requests, onStatusChange }: Bookin
                 </button>
                 <button
                   type="button"
+                    disabled={updatingId !== null}
                   onClick={() => updateStatus(row.id, 'REJECTED')}
                   className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full border border-black bg-white px-4 py-2 text-xs font-bold text-black"
                 >

@@ -3,8 +3,14 @@ import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/session';
 import { changePasswordSchema } from '@/lib/validations';
 import { hashPassword, verifyPassword } from '@/lib/auth';
+import { authConfigResponse, authRateLimitResponse } from '@/lib/auth-api';
 
 export async function POST(request: Request) {
+  const configError = authConfigResponse({ jwt: true });
+  if (configError) return configError;
+  const rateLimitError = await authRateLimitResponse(request, 'change-password', 10, 15 * 60 * 1000);
+  if (rateLimitError) return rateLimitError;
+
   const session = await getSession();
   if (!session) {
     return NextResponse.json({ message: 'You must be logged in.' }, { status: 401 });

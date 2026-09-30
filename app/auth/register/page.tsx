@@ -61,9 +61,7 @@ export default function RegisterPage() {
         throw new Error(body?.message ?? 'Registration failed. Please try again.');
       }
 
-      router.push(
-        result.data.role === 'TENANT' ? '/onboarding/tenant' : '/onboarding/owner'
-      );
+      router.push(`/auth/verify-email?email=${encodeURIComponent(result.data.email)}`);
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Something went wrong.');
     } finally {
@@ -179,6 +177,7 @@ export default function RegisterPage() {
             <input
               id="password"
               type="password"
+              maxLength={128}
               value={formData.password}
               onChange={(e) => updateField('password', e.target.value)}
               placeholder="At least 8 characters"

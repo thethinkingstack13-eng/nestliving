@@ -41,6 +41,30 @@ enum BookingStatus {
   CANCELLED
 }
 
+enum PropertyReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ConnectionStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+enum AuthTokenPurpose {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+enum EmailDeliveryStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+}
+
 // ---------------------------------------------
 // MODELS
 // ---------------------------------------------
@@ -51,6 +75,7 @@ model User {
   password  String
   name      String?
   role      Role     @default(TENANT)
+  emailVerifiedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -64,6 +89,9 @@ model User {
   ownerProfile    OwnerProfile?
   properties      Property[]       @relation("OwnerProperties")
   bookingRequests BookingRequest[] @relation("TenantBookings")
+  roommateRequestsSent     RoommateConnection[] @relation("RoommateRequestsSent")
+  roommateRequestsReceived RoommateConnection[] @relation("RoommateRequestsReceived")
+  authTokens AuthToken[]
 
   @@map("users")
 }
@@ -72,11 +100,14 @@ model TenantProfile {
   id                String   @id @default(auto()) @map("_id") @db.ObjectId
   userId            String   @unique @db.ObjectId
   fullName          String
+  occupation        String?
+  avatarUrl         String?
   phone             String?
   bio               String?
   budgetMin         Int?
   budgetMax         Int?
   preferredLocation String?
+  preferredLocationKey String @default("")
   // Flexible JSON blob for lifestyle matching e.g.
   // { smoking: false, pets: true, foodPreference: "veg", sleepSchedule: "early" }
   lifestyleParams   Json?
@@ -85,6 +116,7 @@ model TenantProfile {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([preferredLocationKey, budgetMax, updatedAt])
   @@map("tenant_profiles")
 }
 
@@ -93,6 +125,7 @@ model OwnerProfile {
   userId        String   @unique @db.ObjectId
   phone         String
   businessName  String
+  // AES-256-GCM ciphertext written by lib/owner-id.ts.
   governmentId  String
   city          String
   address       String
@@ -112,8 +145,12 @@ model Property {
   description String?
   address     String
   city        String
+  citySearchKey String @default("")
+  addressSearchKey String @default("")
   state       String
   isApproved  Boolean  @default(false)
+  reviewStatus PropertyReviewStatus @default(PENDING)
+  imageUrls   String[] @default([])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -125,6 +162,11 @@ model Property {
   amenities  Amenity[] @relation(fields: [amenityIds], references: [id])
 
   @@index([city, state])
+  @@index([isApproved, reviewStatus, city, state])
+  @@index([citySearchKey, isApproved, reviewStatus])
+  @@index([addressSearchKey, isApproved, reviewStatus])
+  @@index([reviewStatus, isApproved, createdAt])
+  @@index([ownerId, createdAt])
   @@map("properties")
 }
 
@@ -132,8 +174,10 @@ model Room {
   id               String   @id @default(auto()) @map("_id") @db.ObjectId
   propertyId       String   @db.ObjectId
   roomType         RoomType
+  genderPreference String   @default("ANY")
   totalBeds        Int
   availableBeds    Int
+  amenities        String[] @default([])
   rentPerMonth     Int
   depositAmount    Int
   availabilityDate DateTime
@@ -144,6 +188,9 @@ model Room {
   bookingRequests BookingRequest[]
 
   @@index([propertyId])
+  @@index([availableBeds, rentPerMonth])
+  @@index([availableBeds, createdAt])
+  @@index([roomType, availableBeds, rentPerMonth])
   @@map("rooms")
 }
 
@@ -172,7 +219,58 @@ model BookingRequest {
   tenant User @relation("TenantBookings", fields: [tenantId], references: [id], onDelete: Cascade)
   room   Room @relation(fields: [roomId], references: [id], onDelete: Cascade)
 
-  @@index([tenantId])
-  @@index([roomId])
+  // One application record per tenant and room prevents concurrent duplicate submissions.
+  @@unique([tenantId, roomId])
+  @@index([tenantId, createdAt])
+  @@index([roomId, status, createdAt])
   @@map("booking_requests")
+}
+
+model RoommateConnection {
+  id          String           @id @default(auto()) @map("_id") @db.ObjectId
+  requesterId String           @db.ObjectId
+  targetId    String           @db.ObjectId
+  status      ConnectionStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  requester User @relation("RoommateRequestsSent", fields: [requesterId], references: [id], onDelete: Cascade)
+  target    User @relation("RoommateRequestsReceived", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, targetId])
+  @@index([targetId, status])
+  @@map("roommate_connections")
+}
+
+model AuthToken {
+  id        String          @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String          @db.ObjectId
+  tokenHash String          @unique
+  purpose   AuthTokenPurpose
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime        @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose, expiresAt])
+  @@map("auth_tokens")
+}
+
+model EmailOutbox {
+  id             String             @id @default(auto()) @map("_id") @db.ObjectId
+  to             String
+  subject        String
+  encryptedHtml  String
+  status         EmailDeliveryStatus @default(PENDING)
+  attempts       Int                @default(0)
+  nextAttemptAt  DateTime           @default(now())
+  lockedAt       DateTime?
+  lastError      String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([status, nextAttemptAt])
+  @@index([status, lockedAt])
+  @@map("email_outbox")
 }

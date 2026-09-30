@@ -2,11 +2,15 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/session';
 import { ownerOnboardingSchema } from '@/lib/validations';
+import { encryptGovernmentId } from '@/lib/owner-id';
 
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) {
     return NextResponse.json({ message: 'You must be logged in.' }, { status: 401 });
+  }
+  if (session.role !== 'OWNER') {
+    return NextResponse.json({ message: 'Only owners can complete owner onboarding.' }, { status: 403 });
   }
 
   const body = await request.json().catch(() => null);
@@ -20,14 +24,15 @@ export async function POST(request: Request) {
   }
 
   const { phone, businessName, governmentId, city, address, agreedToTerms } = result.data;
+  const encryptedGovernmentId = encryptGovernmentId(governmentId);
 
-  const ownerProfile = await prisma.ownerProfile.upsert({
+  await prisma.ownerProfile.upsert({
     where: { userId: session.userId },
     create: {
       userId: session.userId,
       phone,
       businessName,
-      governmentId,
+      governmentId: encryptedGovernmentId,
       city,
       address,
       agreedToTerms,
@@ -35,12 +40,12 @@ export async function POST(request: Request) {
     update: {
       phone,
       businessName,
-      governmentId,
+      governmentId: encryptedGovernmentId,
       city,
       address,
       agreedToTerms,
     },
   });
 
-  return NextResponse.json(ownerProfile, { status: 200 });
+  return NextResponse.json({ message: 'Owner profile saved.' }, { status: 200 });
 }

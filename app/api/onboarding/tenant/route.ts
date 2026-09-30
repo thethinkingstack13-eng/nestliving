@@ -2,11 +2,15 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/session';
 import { tenantOnboardingSchema } from '@/lib/validations';
+import { areOwnedCloudinaryImages } from '@/lib/cloudinary';
 
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) {
     return NextResponse.json({ message: 'You must be logged in.' }, { status: 401 });
+  }
+  if (session.role !== 'TENANT') {
+    return NextResponse.json({ message: 'Only tenants can complete tenant onboarding.' }, { status: 403 });
   }
 
   const body = await request.json().catch(() => null);
@@ -29,7 +33,12 @@ export async function POST(request: Request) {
     smokingAllowed,
     petsFriendly,
     bio,
+    occupation,
+    avatarUrl,
   } = result.data;
+  if (avatarUrl && !areOwnedCloudinaryImages([avatarUrl], session.userId, 'avatar')) {
+    return NextResponse.json({ message: 'Upload your photo using this account.' }, { status: 400 });
+  }
 
   // The tenant's display name comes from the User record created at
   // registration — onboarding doesn't ask for it again.
@@ -43,7 +52,10 @@ export async function POST(request: Request) {
     create: {
       userId: session.userId,
       fullName: user.name ?? user.email,
+      occupation,
+      avatarUrl: avatarUrl || null,
       preferredLocation,
+      preferredLocationKey: preferredLocation.trim().toLowerCase(),
       budgetMin,
       budgetMax,
       bio,
@@ -57,6 +69,9 @@ export async function POST(request: Request) {
     },
     update: {
       preferredLocation,
+      preferredLocationKey: preferredLocation.trim().toLowerCase(),
+      occupation,
+      avatarUrl: avatarUrl || null,
       budgetMin,
       budgetMax,
       bio,
@@ -70,5 +85,5 @@ export async function POST(request: Request) {
     },
   });
 
-  return NextResponse.json(tenantProfile, { status: 200 });
+  return NextResponse.json({ profile: { id: tenantProfile.id } }, { status: 200 });
 }

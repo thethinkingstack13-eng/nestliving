@@ -21,6 +21,7 @@ export interface RoommateCardProps {
   lifestyleParams: RoommateLifestyleParams;
   compatibilityScore: number;
   avatarUrl?: string;
+  initiallyRequested?: boolean;
   onConnect?: (id: string) => void;
 }
 
@@ -52,15 +53,36 @@ export default function RoommateCard({
   lifestyleParams,
   compatibilityScore,
   avatarUrl,
+  initiallyRequested = false,
   onConnect,
 }: RoommateCardProps) {
-  const [requestSent, setRequestSent] = useState(false);
+  const [requestSent, setRequestSent] = useState(initiallyRequested);
+  const [isSending, setIsSending] = useState(false);
+  const [requestError, setRequestError] = useState<string | null>(null);
   const tier = getCompatibilityTier(compatibilityScore);
 
-  const handleConnect = () => {
-    if (requestSent) return;
-    setRequestSent(true);
-    onConnect?.(id);
+  const handleConnect = async () => {
+    if (requestSent || isSending) return;
+    setIsSending(true);
+    setRequestError(null);
+    try {
+      if (onConnect) {
+        await onConnect(id);
+      } else {
+        const response = await fetch('/api/roommate-connections', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targetUserId: id }),
+        });
+        const result = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(result?.message ?? 'Could not send request.');
+      }
+      setRequestSent(true);
+    } catch (error) {
+      setRequestError(error instanceof Error ? error.message : 'Could not send request.');
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
@@ -129,17 +151,18 @@ export default function RoommateCard({
       </div>
 
       {/* CTA */}
+      {requestError && <p role="alert" className="mt-4 text-xs text-[#E11D48]">{requestError}</p>}
       <button
         type="button"
         onClick={handleConnect}
-        disabled={requestSent}
+        disabled={requestSent || isSending}
         className={`mt-6 flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-bold tracking-wide transition-colors ${
           requestSent
             ? 'cursor-default border border-black bg-white text-black'
             : 'bg-black text-white hover:bg-neutral-800'
         }`}
       >
-        {requestSent ? (
+        {isSending ? 'SENDING REQUEST…' : requestSent ? (
           <>
             REQUEST SENT
             <Check size={16} strokeWidth={2.5} />

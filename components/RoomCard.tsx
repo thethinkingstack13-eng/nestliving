@@ -9,10 +9,12 @@ import {
   MapPin,
   type LucideIcon,
 } from 'lucide-react';
+import BookingRequestButton from '@/components/BookingRequestButton';
 
 export type RoomType = 'SHARED' | 'PRIVATE';
 
 export interface RoomCardProps {
+  id?: string;
   title: string;
   location: string;
   rentPerMonth: number;
@@ -21,8 +23,8 @@ export interface RoomCardProps {
   availableBeds: number;
   totalBeds: number;
   amenities: string[];
-  compatibilityScore: number;
-  imageUrl: string;
+  compatibilityScore?: number;
+  imageUrl?: string;
   href?: string;
 }
 
@@ -41,6 +43,7 @@ function formatCurrency(amount: number): string {
 
 export default function RoomCard({
   title,
+  id,
   location,
   rentPerMonth,
   depositAmount,
@@ -48,7 +51,7 @@ export default function RoomCard({
   availableBeds,
   totalBeds,
   amenities,
-  compatibilityScore,
+  compatibilityScore = 0,
   imageUrl,
   href = '#',
 }: RoomCardProps) {
@@ -58,19 +61,21 @@ export default function RoomCard({
     <div className="flex flex-col border border-black bg-white shadow-sm transition-shadow hover:shadow-md">
       {/* Image container */}
       <div className="relative h-48 w-full overflow-hidden border-b border-black bg-neutral-100">
-        <Image
-          src={imageUrl}
-          alt={title}
-          fill
-          sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
-          className="object-cover"
-        />
+        {imageUrl ? (
+          <Image
+            src={imageUrl}
+            alt={title}
+            fill
+            sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
+            className="object-cover"
+          />
+        ) : <div className="h-full w-full bg-neutral-200" aria-hidden="true" />}
 
         {/* Compatibility badge */}
-        <div className="absolute right-3 top-3 flex items-center gap-1.5 rounded-full border border-black bg-emerald-400 px-3 py-1 shadow-[0_0_12px_2px_rgba(52,211,153,0.7)]">
+        {compatibilityScore > 0 && <div className="absolute right-3 top-3 flex items-center gap-1.5 rounded-full border border-black bg-emerald-400 px-3 py-1 shadow-[0_0_12px_2px_rgba(52,211,153,0.7)]">
           <span className="h-1.5 w-1.5 rounded-full bg-black" />
           <span className="text-xs font-bold text-black">{compatibilityScore}% MATCH</span>
-        </div>
+        </div>}
 
         {/* Room type tag */}
         <div className="absolute left-3 top-3 rounded-full border border-black bg-white px-3 py-1 text-[10px] font-bold tracking-wide">
@@ -124,13 +129,11 @@ export default function RoomCard({
         </div>
 
         {/* CTA */}
-        <a
-          href={href}
-          className="mt-6 flex items-center justify-center gap-2 rounded-full bg-black px-5 py-2.5 text-sm font-bold tracking-wide text-white transition-colors hover:bg-neutral-800"
-        >
-          VIEW DETAILS &amp; APPLY
-          <ArrowUpRight size={16} strokeWidth={2.5} />
-        </a>
+        {id ? <BookingRequestButton roomId={id} /> : (
+          <a href={href} className="mt-6 flex items-center justify-center gap-2 rounded-full bg-black px-5 py-2.5 text-sm font-bold tracking-wide text-white transition-colors hover:bg-neutral-800">
+            VIEW DETAILS <ArrowUpRight size={16} strokeWidth={2.5} />
+          </a>
+        )}
       </div>
     </div>
   );

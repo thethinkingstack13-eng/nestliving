@@ -6,9 +6,10 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'picsum.photos',
       },
-      // Add your Supabase Storage / CDN hostname here once real
-      // property and avatar photos are uploaded, e.g.:
-      // { protocol: 'https', hostname: '<project-ref>.supabase.co' },
+      {
+        protocol: 'https',
+        hostname: 'res.cloudinary.com',
+      },
     ],
   },
 };

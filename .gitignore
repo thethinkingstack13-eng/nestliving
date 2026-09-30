@@ -8,9 +8,9 @@
 # production
 /build
 
-# env files
-.env
-.env*.local
+# Environment secrets stay local; the committed example contains placeholders only.
+.env*
+!.env.example
 
 # prisma
 prisma/dev.db

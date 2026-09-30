@@ -37,8 +37,9 @@ npx prisma generate
 
 ## 2. Configure environment variables
 
-Copy the template and fill in your Atlas connection string (Atlas -> your
-cluster -> "Connect" -> "Drivers"):
+Copy the placeholder template, then enter real values in the ignored local
+`.env` file. Never place live credentials in `.env.example` or another tracked
+file.
 
 ```bash
 cp .env.example .env
@@ -47,13 +48,75 @@ cp .env.example .env
 ```
 DATABASE_URL="mongodb+srv://<username>:<password>@<cluster-url>/nestliving?retryWrites=true&w=majority"
 JWT_SECRET="<a long random string>"
-RESEND_API_KEY="re_xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+APP_URL="https://your-domain.example"
+RESEND_API_KEY="<resend-api-key>"
+EMAIL_OUTBOX_ENCRYPTION_KEY=""
+CRON_SECRET=""
+ADMIN_EMAIL=""
+ADMIN_PASSWORD=""
+OWNER_ID_ENCRYPTION_KEY=""
+CLOUDINARY_CLOUD_NAME=""
+CLOUDINARY_API_KEY=""
+CLOUDINARY_API_SECRET=""
+```
+
+Set the three Cloudinary values in `.env` and your deployment secret manager
+to enable signed property and roommate-photo uploads. The API secret is used
+only on the server; never expose it through a `NEXT_PUBLIC_` variable.
+
+Registration and password recovery require `DATABASE_URL`, `JWT_SECRET`,
+`RESEND_API_KEY`, `EMAIL_OUTBOX_ENCRYPTION_KEY`, and (in production) `APP_URL`.
+New accounts must verify their email before login. Auth request limits are
+stored in MongoDB and shared across server instances.
+
+Generate `OWNER_ID_ENCRYPTION_KEY` with `openssl rand -hex 32` and set it in
+your local environment and deployment secret manager. Back it up securely:
+losing this key makes stored owner IDs permanently unreadable. Owner IDs are
+encrypted before database writes and are not returned by the onboarding API.
+
+If the database already contains owner profiles created before this change,
+run this once after setting the encryption key:
+
+```bash
+npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/encrypt-owner-ids.ts
+```
+
+Before deploying email verification, capture a UTC cutoff, run `npx prisma db
+push`, and mark accounts created before that cutoff as already verified:
+
+```bash
+EMAIL_VERIFICATION_CUTOFF="2026-09-29T00:00:00.000Z" npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/backfill-email-verification.ts
+```
+
+To create the initial administrator, provide `ADMIN_EMAIL` and a unique
+`ADMIN_PASSWORD` of at least 16 characters to the seed command. Keep these
+values in your local environment or deployment secret manager; do not commit
+them to the repository. The seed will not promote an existing non-admin user.
+
+```bash
+read -r -s -p "Admin password: " ADMIN_PASSWORD
+printf '\n'
+export ADMIN_EMAIL="admin@example.com" ADMIN_PASSWORD
+npx prisma db seed
 ```
 
 Generate a random `JWT_SECRET` by running this in any terminal:
 ```bash
 node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
+
+Generate `EMAIL_OUTBOX_ENCRYPTION_KEY` with `openssl rand -hex 32`; email HTML
+is encrypted before being saved in MongoDB. Set `APP_URL` to the public HTTPS
+origin and configure a random `CRON_SECRET` in both the app and your scheduler.
+Call `/api/cron/email-outbox` every few minutes with
+`Authorization: Bearer $CRON_SECRET`; queued mail is retried with backoff and
+eventually marked failed after repeated errors. Set `RESEND_API_KEY` to enable
+delivery. Keep every real value in ignored `.env` and deployment secrets.
+
+For existing accounts, push the new schema first, then run
+`EMAIL_VERIFICATION_CUTOFF=<ISO timestamp before deployment> npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/backfill-email-verification.ts`
+before deploying the verification requirement. This preserves accounts that
+already existed before the cutoff while newly registered users must verify.
 
 Get a free `RESEND_API_KEY` at [resend.com](https://resend.com) -- sign up,
 create an API key. No domain verification needed to start; emails send
@@ -72,9 +135,20 @@ of `prisma migrate dev` you push the schema directly:
 npx prisma db push
 ```
 
-This creates all collections from `prisma/schema.prisma` (users,
-tenant_profiles, properties, rooms, amenities, booking_requests) in your
-Atlas database.
+Run this after pulling schema changes so listing photos, room amenities,
+review states, auth/outbox collections, and roommate connection indexes exist
+in MongoDB. Run the same command in production before deploying code that
+depends on the new fields.
+
+For existing listings and tenant profiles, rebuild the lower-case search-key
+columns once after the schema push:
+
+```bash
+npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/backfill-search-keys.ts
+```
+
+This applies the schema in `prisma/schema.prisma`, including user/profile,
+property/room, booking, and roommate connection collections and indexes.
 
 ## 4. Run the dev server
 
@@ -144,33 +218,26 @@ prisma/
   by `middleware.ts` -- visiting them without a valid session redirects to
   `/auth/login`.
 
-**Still mock (hardcoded arrays, not yet wired to Prisma):**
-- Room listings (`/rooms`), roommate discovery (`/roommates`)
-- Dashboard content itself (stats, booking request tables, property lists)
-- Booking request creation/approval
-- Admin property approval / user management
-
-The natural next phase is building `/api/rooms`, `/api/bookings`, and
-`/api/admin/*` routes and swapping each dashboard's mock array for a real
-Prisma query.
+Room search, roommate discovery, owner/tenant dashboards, property review,
+listing creation, booking requests, and booking decisions are backed by Prisma.
+New listings require admin approval. Booking approvals decrement available
+beds conditionally inside a MongoDB transaction, so the production database
+must support transactions (MongoDB Atlas replica sets do).
 
 ## Known things to swap before shipping
 
-- **Images:** `next.config.js` only whitelists `picsum.photos` (used by
-  mock room photos). Add your real image host (e.g. a cloud storage
-  bucket) to `images.remotePatterns` once you're using real property/avatar
-  photos.
 - **Partner badges** on the landing page footer use placeholder names
   (`STAYWELL`, `ROOMIO`, etc.) instead of real companies -- replace with
   actual partners once you have them.
-- **Auth:** there's no session/auth provider wired in yet -- the register
-  form assumes an API route will set a session cookie on success.
+- **Secrets:** configure `DATABASE_URL`, `JWT_SECRET`,
+  `OWNER_ID_ENCRYPTION_KEY`, and Cloudinary settings in the hosting provider's
+  secret manager. Never commit actual values to Git.
 
 ## Deploying to Vercel
 
 1. Push this repo to GitHub.
 2. Import it into Vercel ("Add New Project" -> select the repo).
-3. In the import screen's Environment Variables section, add `DATABASE_URL`
-   with your Atlas connection string.
+3. Configure the required environment variables from `.env.example` in
+  Vercel's Environment Variables settings. Keep their values out of Git.
 4. Click Deploy. Every future push to the connected branch redeploys
    automatically.

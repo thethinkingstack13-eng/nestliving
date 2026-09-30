@@ -4,33 +4,42 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  const adminEmail = 'admin@nestliving.com'; // 👈 Change to your preferred admin email
-  const rawPassword = 'Adminnestliving@1122';   // 👈 Change to your preferred admin password
+  const adminEmail = process.env.ADMIN_EMAIL?.trim().toLowerCase();
+  const rawPassword = process.env.ADMIN_PASSWORD;
 
-  // Hash password
+  if (!adminEmail || !rawPassword) {
+    throw new Error('Set ADMIN_EMAIL and ADMIN_PASSWORD before seeding the admin account.');
+  }
+  if (rawPassword.length < 16) {
+    throw new Error('ADMIN_PASSWORD must be at least 16 characters long.');
+  }
+
+  const existingUser = await prisma.user.findUnique({ where: { email: adminEmail } });
+  if (existingUser) {
+    if (existingUser.role !== 'ADMIN') {
+      throw new Error('ADMIN_EMAIL belongs to a non-admin account; refusing to change its role.');
+    }
+    console.log(`Admin account already exists: ${adminEmail}`);
+    return;
+  }
+
   const hashedPassword = await bcrypt.hash(rawPassword, 10);
-
-  // Upsert user (creates if doesn't exist, updates role to ADMIN if already exists)
-  const admin = await prisma.user.upsert({
-    where: { email: adminEmail },
-    update: {
-      role: 'ADMIN',
-    },
-    create: {
+  await prisma.user.create({
+    data: {
       email: adminEmail,
       name: 'Super Admin',
       password: hashedPassword,
-      role: 'ADMIN', // Make sure this matches the enum in your schema.prisma
+      role: 'ADMIN',
     },
   });
 
-  console.log(`✅ Admin account created/updated: ${admin.email}`);
+  console.log(`Admin account created: ${adminEmail}`);
 }
 
 main()
   .catch((e) => {
     console.error('❌ Error creating admin:', e);
-    process.exit(1);
+    process.exitCode = 1;
   })
   .finally(async () => {
     await prisma.$disconnect();

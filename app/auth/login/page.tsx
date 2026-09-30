@@ -115,6 +115,7 @@ export default function LoginPage() {
             <input
               id="password"
               type="password"
+              maxLength={128}
               value={formData.password}
               onChange={(e) => updateField('password', e.target.value)}
               placeholder="Your password"
@@ -128,6 +129,11 @@ export default function LoginPage() {
           {submitError && (
             <p className="mt-4 text-xs font-medium text-[#E11D48]">{submitError}</p>
           )}
+
+          <div className="mt-4 flex justify-between text-xs font-semibold">
+            <Link href="/auth/password-reset" className="underline underline-offset-2">Forgot password?</Link>
+            <Link href="/auth/verify-email" className="underline underline-offset-2">Verify email</Link>
+          </div>
 
           <button
             type="submit"

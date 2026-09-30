@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Check, X, MapPin } from 'lucide-react';
 import { StatusBadge, type BookingStatus } from '@/components/BookingRequestTable';
 
@@ -37,14 +38,34 @@ export default function PropertyApprovalTable({
   properties,
   onStatusChange,
 }: PropertyApprovalTableProps) {
-  // Local copy so Approve/Reject reflect instantly — same pattern as
-  // BookingRequestTable. Wire onStatusChange to a real PATCH call
-  // (e.g. /api/properties/[id]/approve) once the API layer exists.
+  const router = useRouter();
   const [rows, setRows] = useState(properties);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const updateStatus = (id: string, status: PropertyApprovalStatus) => {
-    setRows((prev) => prev.map((row) => (row.id === id ? { ...row, status } : row)));
-    onStatusChange?.(id, status);
+  const updateStatus = async (id: string, status: PropertyApprovalStatus) => {
+    if (updatingId) return;
+    setUpdatingId(id);
+    setError(null);
+    try {
+      if (onStatusChange) {
+        await onStatusChange(id, status);
+      } else {
+        const response = await fetch(`/api/admin/properties/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status }),
+        });
+        const result = await response.json().catch(() => null);
+        if (!response.ok) throw new Error(result?.message ?? 'Could not update listing review.');
+      }
+      setRows((prev) => prev.map((row) => (row.id === id ? { ...row, status } : row)));
+      router.refresh();
+    } catch (updateError) {
+      setError(updateError instanceof Error ? updateError.message : 'Could not update listing review.');
+    } finally {
+      setUpdatingId(null);
+    }
   };
 
   if (rows.length === 0) {
@@ -60,6 +81,7 @@ export default function PropertyApprovalTable({
 
   return (
     <div className="overflow-hidden border border-black bg-white">
+      {error && <p role="alert" className="border-b border-black bg-red-50 px-5 py-3 text-sm text-red-700">{error}</p>}
       {/* Desktop table */}
       <div className="hidden overflow-x-auto md:block">
         <table className="w-full border-collapse text-left text-sm">
@@ -114,6 +136,7 @@ export default function PropertyApprovalTable({
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
+                        disabled={updatingId !== null}
                         onClick={() => updateStatus(row.id, 'APPROVED')}
                         className="inline-flex items-center gap-1.5 rounded-full bg-black px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-neutral-800"
                       >
@@ -122,6 +145,7 @@ export default function PropertyApprovalTable({
                       </button>
                       <button
                         type="button"
+                        disabled={updatingId !== null}
                         onClick={() => updateStatus(row.id, 'REJECTED')}
                         className="inline-flex items-center gap-1.5 rounded-full border border-black bg-white px-4 py-2 text-xs font-bold text-black transition-colors hover:bg-neutral-100"
                       >
@@ -165,6 +189,7 @@ export default function PropertyApprovalTable({
               <div className="mt-4 flex items-center gap-2">
                 <button
                   type="button"
+                  disabled={updatingId !== null}
                   onClick={() => updateStatus(row.id, 'APPROVED')}
                   className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-black px-4 py-2 text-xs font-bold text-white"
                 >
@@ -173,6 +198,7 @@ export default function PropertyApprovalTable({
                 </button>
                 <button
                   type="button"
+                  disabled={updatingId !== null}
                   onClick={() => updateStatus(row.id, 'REJECTED')}
                   className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full border border-black bg-white px-4 py-2 text-xs font-bold text-black"
                 >

@@ -8,6 +8,7 @@ import {
   type TenantOnboardingValues,
 } from '@/lib/validations';
 import Navbar from '@/components/Navbar';
+import ImageUploader from '@/components/ImageUploader';
 
 type FormState = {
   preferredLocation: string;
@@ -19,6 +20,8 @@ type FormState = {
   smokingAllowed: boolean;
   petsFriendly: boolean;
   bio: string;
+  occupation: string;
+  avatarUrl: string;
 };
 
 type FieldErrors = Partial<Record<keyof TenantOnboardingValues, string>>;
@@ -33,6 +36,8 @@ const INITIAL_STATE: FormState = {
   smokingAllowed: false,
   petsFriendly: false,
   bio: '',
+  occupation: '',
+  avatarUrl: '',
 };
 
 function ScaleSelector({
@@ -140,6 +145,30 @@ export default function TenantOnboardingPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="p-8" noValidate>
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide">Profile photo</p>
+            <ImageUploader
+              purpose="avatar"
+              imageUrls={formData.avatarUrl ? [formData.avatarUrl] : []}
+              onChange={(imageUrls) => updateField('avatarUrl', imageUrls[0] ?? '')}
+            />
+          </div>
+
+          <div className="mt-6">
+            <label htmlFor="occupation" className="mb-1.5 block text-xs font-semibold uppercase tracking-wide">
+              Occupation or study
+            </label>
+            <input
+              id="occupation"
+              type="text"
+              maxLength={80}
+              value={formData.occupation}
+              onChange={(event) => updateField('occupation', event.target.value)}
+              placeholder="e.g. Graduate student"
+              className="w-full border border-black bg-[#FAFAFA] px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-black"
+            />
+          </div>
+
           {/* Preferred Location */}
           <div>
             <label htmlFor="preferredLocation" className="mb-1.5 block text-xs font-semibold uppercase tracking-wide">
