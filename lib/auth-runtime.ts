@@ -21,6 +21,8 @@ export function missingAuthRuntimeConfig(requirements: RuntimeRequirements = {})
   if (requirements.applicationUrl && process.env.NODE_ENV === 'production' && !process.env.APP_URL) {
     missing.push('APP_URL');
   }
-  if (requirements.emailProvider && !process.env.RESEND_API_KEY) missing.push('RESEND_API_KEY');
+  if (requirements.emailProvider && process.env.NODE_ENV !== 'development' && !process.env.RESEND_API_KEY) {
+    missing.push('RESEND_API_KEY');
+  }
   return missing;
 }

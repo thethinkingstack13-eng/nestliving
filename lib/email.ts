@@ -6,9 +6,13 @@ import { Resend } from 'resend';
 // "notifications@yourdomain.com" once you verify a domain in Resend.
 const FROM_ADDRESS = 'NestLiving <onboarding@resend.dev>';
 
-function getClient(): Resend {
+function getClient(): Resend | null {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('RESEND_API_KEY is not set; skipping outbound email delivery in development mode.');
+      return null;
+    }
     throw new Error('RESEND_API_KEY is not set. Add it to your .env file.');
   }
   return new Resend(apiKey);
@@ -32,6 +36,8 @@ interface SendEmailArgs {
 
 export async function sendEmail({ to, subject, html }: SendEmailArgs): Promise<void> {
   const resend = getClient();
+  if (!resend) return;
+
   const result = await resend.emails.send({ from: FROM_ADDRESS, to, subject, html });
   if (result.error) throw new Error(result.error.message);
 }

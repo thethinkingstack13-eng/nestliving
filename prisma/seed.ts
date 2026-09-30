@@ -30,6 +30,7 @@ async function main() {
       name: 'Super Admin',
       password: hashedPassword,
       role: 'ADMIN',
+      emailVerifiedAt: new Date(),
     },
   });
 
