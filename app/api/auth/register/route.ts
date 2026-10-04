@@ -41,7 +41,7 @@ export async function POST(request: Request) {
       'Verify your NestLiving email',
       emailVerificationHtml(user.name ?? 'there', verifyUrl.toString())
     );
-    await dispatchEmailOutbox(1);
+    await dispatchEmailOutbox(10);
 
     return NextResponse.json({ message: 'If registration is available for this address, a verification email will be sent.' }, { status: 202 });
   } catch (error) {

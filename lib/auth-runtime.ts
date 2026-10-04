@@ -21,8 +21,13 @@ export function missingAuthRuntimeConfig(requirements: RuntimeRequirements = {})
   if (requirements.applicationUrl && process.env.NODE_ENV === 'production' && !process.env.APP_URL) {
     missing.push('APP_URL');
   }
-  if (requirements.emailProvider && process.env.NODE_ENV !== 'development' && !process.env.RESEND_API_KEY) {
-    missing.push('RESEND_API_KEY');
+  // An email provider is "configured" if EITHER Resend OR SMTP credentials exist.
+  const hasEmailProvider =
+    Boolean(process.env.RESEND_API_KEY) ||
+    Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+
+  if (requirements.emailProvider && process.env.NODE_ENV !== 'development' && !hasEmailProvider) {
+    missing.push('RESEND_API_KEY or SMTP_HOST/SMTP_USER/SMTP_PASS');
   }
   return missing;
 }

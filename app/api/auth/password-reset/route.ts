@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       resetUrl.pathname = '/auth/password-reset';
       resetUrl.searchParams.set('token', token);
       await queueEmail(user.email, 'Reset your NestLiving password', passwordResetHtml(resetUrl.toString()));
-      await dispatchEmailOutbox(1);
+      await dispatchEmailOutbox(10);
     }
   } catch (error) {
     console.error('Password reset request failed:', error instanceof Error ? error.message : 'unknown error');

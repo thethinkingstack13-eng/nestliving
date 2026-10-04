@@ -9,7 +9,7 @@ export async function createAuthToken(userId: string, purpose: AuthTokenPurpose,
   const token = randomBytes(32).toString('base64url');
   const tokenHash = createHash('sha256').update(token).digest('hex');
   await prisma.authToken.create({
-    data: { userId, purpose, tokenHash, expiresAt: new Date(Date.now() + lifetimeMs) },
+    data: { userId, purpose, tokenHash, expiresAt: new Date(Date.now() + lifetimeMs),  usedAt: null },
   });
   return token;
 }

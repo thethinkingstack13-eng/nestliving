@@ -27,7 +27,7 @@ export async function POST(request: Request) {
       verifyUrl.pathname = '/api/auth/verify-email';
       verifyUrl.searchParams.set('token', token);
       await queueEmail(user.email, 'Verify your NestLiving email', emailVerificationHtml(user.name ?? 'there', verifyUrl.toString()));
-      await dispatchEmailOutbox(1);
+      await dispatchEmailOutbox(10);
     }
   } catch (error) {
     console.error('Verification resend failed:', error instanceof Error ? error.message : 'unknown error');

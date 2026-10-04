@@ -103,7 +103,7 @@ export async function POST(request: Request) {
       return { booking, isNew: !existing };
     });
 
-    await dispatchEmailOutbox(1).catch((error) => {
+    await dispatchEmailOutbox(10).catch((error) => {
       console.error('Could not dispatch booking notification:', error instanceof Error ? error.message : 'unknown error');
     });
     return NextResponse.json({ booking: created.booking }, { status: created.isNew ? 201 : 200 });

@@ -1,5 +1,5 @@
 import { Resend } from 'resend';
-
+import nodemailer from 'nodemailer';
 // Resend's shared "onboarding@resend.dev" sender works immediately with
 // no domain verification -- perfect for getting real email delivery
 // working before you own a custom domain. Swap this for
@@ -34,7 +34,46 @@ interface SendEmailArgs {
   html: string;
 }
 
+// [SMTP] When SMTP_* variables are set we send through SMTP (Gmail, Brevo...).
+// This works WITHOUT owning a domain, unlike Resend's onboarding sender which
+// only delivers to the Resend account owner's own address.
+// If SMTP is not configured we fall back to the original Resend path.
+function smtpConfigured(): boolean {
+  return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+}
+
+async function sendViaSmtp({ to, subject, html }: SendEmailArgs): Promise<void> {
+  const port = Number(process.env.SMTP_PORT ?? 465);
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port,
+    // 465 = TLS from the first byte; 587 = starts plain then upgrades (STARTTLS).
+    secure: port === 465,
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    // Short timeouts so a stuck SMTP server can't hang a serverless function.
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 15_000,
+  });
+
+  await transporter.sendMail({
+    // Gmail always rewrites "from" to the authenticated account anyway.
+    from: process.env.EMAIL_FROM ?? `NestLiving <${process.env.SMTP_USER}>`,
+    to,
+    subject,
+    html,
+  });
+}
+
 export async function sendEmail({ to, subject, html }: SendEmailArgs): Promise<void> {
+  // SMTP first (if configured).
+  if (smtpConfigured()) {
+    await sendViaSmtp({ to, subject, html });
+    return;
+  }
+
+  // ---- original Resend path (unchanged) ----
   const resend = getClient();
   if (!resend) return;
 
