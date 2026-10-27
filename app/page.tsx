@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ArrowUpRight, Play, Sparkle, MapPin } from 'lucide-react';
 import Navbar from '@/components/Navbar';
+import Footer from '@/components/Footer';
 
 // ---------------------------------------------
 // Static placeholder data
@@ -27,6 +28,7 @@ const PARTNER_BADGES = ['STAYWELL', 'ROOMIO', 'NESTHUB', 'URBANLET'];
 
 export default function Home() {
   return (
+    <>
     <main className="min-h-screen bg-[#FAFAFA] text-black">
       <Navbar />
 
@@ -173,5 +175,7 @@ export default function Home() {
         </div>
       </section>
     </main>
+    <Footer />
+    </>
   );
 }

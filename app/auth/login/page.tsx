@@ -1,5 +1,5 @@
 'use client';
-
+import Footer from '@/components/Footer';
 import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -80,7 +80,7 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-screen flex-col bg-[#FAFAFA]">
       <Navbar />
-      <div className="flex flex-1 items-center justify-center px-4 py-16">
+      <div className="flex flex-1 items-center justify-center px-4 py-8 sm:py-16">
       <div className="w-full max-w-md border border-black bg-[#FAFAFA] shadow-[6px_6px_0px_0px_#000000]">
         <div className="border-b border-black p-8">
           <p className="font-mono text-sm font-bold tracking-tight">// NestLiving</p>
@@ -153,6 +153,7 @@ export default function LoginPage() {
         </form>
       </div>
       </div>
+      <Footer />
     </main>
   );
 }

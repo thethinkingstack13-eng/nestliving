@@ -1,9 +1,31 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Mail, MapPin, Wallet, Building2, Phone, Pencil } from 'lucide-react';
-import { prisma } from '@/lib/prisma';
+import Image from 'next/image';
+import { Mail, MapPin, Wallet, Building2, Phone, Pencil, BadgeCheck, CalendarDays } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react'; import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/session';
 import Navbar from '@/components/Navbar';
+
+
+// One labelled row of the profile card. Long values stay on ONE line and get
+// an ellipsis only if they truly don't fit (the full value shows on hover).
+function InfoRow({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value?: string | null }) {
+  return (
+    <div className="flex min-w-0 items-start gap-2.5 px-5 py-3 sm:px-6">
+      <Icon size={15} strokeWidth={2} className="mt-0.5 shrink-0 text-neutral-500" />
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">{label}</p>
+        {value ? (
+          <p className="truncate text-[13px] font-medium sm:text-sm" title={value}>{value}</p>
+        ) : (
+          <p className="text-[13px] text-neutral-400 sm:text-sm">Not added</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 
 // Server component: reads the session cookie directly (no client fetch
 // needed) and pulls the user's own profile from Prisma. Middleware
@@ -28,46 +50,120 @@ export default async function ProfilePage() {
     | { cleanliness?: number; noiseLevel?: number; sleepSchedule?: string; smoking?: boolean; pets?: boolean }
     | null
     | undefined;
+  const tenant = user.tenantProfile;
+  const owner = user.ownerProfile;
+  const phone = owner?.phone ?? tenant?.phone ?? null;
+  const location = owner?.city ?? tenant?.preferredLocation ?? null;
+  const headline = owner?.businessName ?? tenant?.occupation ?? null;
+  const avatarUrl = tenant?.avatarUrl ?? null;
+  const memberSince = user.createdAt.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
 
+  // Profile completeness: how many of these 6 things are filled in.
+  const checklist = [
+    Boolean(user.name),
+    Boolean(phone),
+    Boolean(location),
+    Boolean(headline),
+    user.role === 'TENANT' ? Boolean(tenant?.bio) : Boolean(owner?.address),
+    user.role === 'TENANT' ? Boolean(tenant?.lifestyleParams) : Boolean(owner),
+  ];
+  const completeness = Math.round((checklist.filter(Boolean).length / checklist.length) * 100);
   return (
     <main className="min-h-screen bg-[#FAFAFA] text-black">
       <Navbar />
 
       <div className="mx-auto max-w-3xl px-6 py-10 lg:px-10">
+
+
         {/* Header card */}
 
-{/* flex flex-col gap-5 border border-black bg-white p-5 shadow-[4px_4px_0px_0px_#000000] sm:flex-row sm:items-center sm:justify-between sm:p-8 sm:shadow-[6px_6px_0px_0px_#000000] */}
 
-        <div className="flex items-center justify-between gap-4 border border-black bg-white p-8 shadow-[6px_6px_0px_0px_#000000]">
-          <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full border border-black bg-neutral-200 font-display text-xl font-bold">
-              {(user.name ?? user.email).slice(0, 2).toUpperCase()}
-            </div>
-            <div>
-              <h1 className="font-display text-2xl font-bold leading-tight">
+
+        {/* Header card */}
+        <div className="border border-black bg-white shadow-[4px_4px_0px_0px_#000000] sm:shadow-[6px_6px_0px_0px_#000000]">
+          {/* Top: avatar, name, badges, small Edit button on the right */}
+          <div className="flex items-start gap-3 p-5 sm:items-center sm:gap-4 sm:p-8">
+            {avatarUrl ? (
+              <Image
+                src={avatarUrl}
+                alt=""
+                width={64}
+                height={64}
+                className="h-14 w-14 shrink-0 rounded-full border border-black object-cover sm:h-16 sm:w-16"
+              />
+            ) : (
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-black bg-neutral-200 font-display text-lg font-bold sm:h-16 sm:w-16 sm:text-xl">
+                {(user.name ?? user.email).slice(0, 2).toUpperCase()}
+              </div>
+            )}
+
+            <div className="min-w-0 flex-1">
+              <h1 className="break-words font-display text-xl font-bold leading-tight sm:text-2xl">
                 {user.name ?? 'Unnamed User'}
               </h1>
-              <div className="mt-1 flex items-center gap-1.5 text-sm text-neutral-600">
-                <Mail size={14} strokeWidth={2} />
-                {user.email}
+              {headline && <p className="mt-0.5 truncate text-sm text-neutral-600">{headline}</p>}
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-black px-3 py-1 text-[11px] font-bold">{user.role}</span>
+                {user.emailVerifiedAt && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500 bg-emerald-100 px-2.5 py-1 text-[11px] font-bold text-emerald-800">
+                    <BadgeCheck size={12} strokeWidth={2.5} />
+                    Verified
+                  </span>
+                )}
               </div>
-              <span className="mt-2 inline-flex items-center rounded-full border border-black px-3 py-1 text-[11px] font-bold">
-                {user.role}
-              </span>
             </div>
+
+            <Link
+              href="/settings"
+              aria-label="Edit profile"
+              className="flex h-9 shrink-0 items-center gap-1.5 rounded-full border border-black px-3 text-xs font-bold transition-colors hover:bg-neutral-100"
+            >
+              <Pencil size={13} strokeWidth={2} />
+              Edit
+            </Link>
           </div>
-          <Link
-            href="/settings"
-            className="flex shrink-0 items-center gap-2 rounded-full border border-black px-4 py-2 text-xs font-bold transition-colors hover:bg-neutral-100"
+
+          {/* Email gets its own full-width row, so it stays on one line */}
+          <div className="border-t border-black">
+            <InfoRow icon={Mail} label="Email" value={user.email} />
+          </div>
+
+          {/* Phone, location, member since */}
+          <div
+            className={`grid grid-cols-1 divide-y divide-black border-t border-black ${user.role === 'ADMIN' ? '' : 'sm:grid-cols-3 sm:divide-x sm:divide-y-0'
+              }`}
           >
-            <Pencil size={13} strokeWidth={2} />
-            Edit
-          </Link>
+            {user.role !== 'ADMIN' && <InfoRow icon={Phone} label="Phone" value={phone} />}
+            {user.role !== 'ADMIN' && <InfoRow icon={MapPin} label="Location" value={location} />}
+            <InfoRow icon={CalendarDays} label="Member since" value={memberSince} />
+          </div>
+
+          {/* Completeness bar (not shown for admins) */}
+          {user.role !== 'ADMIN' && (
+            <div className="border-t border-black px-5 py-4 sm:px-8">
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span>Profile {completeness}% complete</span>
+                {completeness < 100 && (
+                  <Link
+                    href={user.role === 'TENANT' ? '/onboarding/tenant' : '/onboarding/owner'}
+                    className="underline"
+                  >
+                    Complete it
+                  </Link>
+                )}
+              </div>
+              <div className="mt-2 h-2 w-full border border-black bg-neutral-100">
+                <div className="h-full bg-black" style={{ width: `${completeness}%` }} />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Tenant profile details */}
+
+
         {user.role === 'TENANT' && (
-          <section className="mt-8 border border-black bg-white p-8">
+          <section className="mt-8 border border-black bg-white p-5 sm:p-8">
             <h2 className="font-display text-lg font-bold">Lifestyle Profile</h2>
             {user.tenantProfile ? (
               <div className="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2">
@@ -127,8 +223,10 @@ export default async function ProfilePage() {
         )}
 
         {/* Owner profile details */}
+
+
         {user.role === 'OWNER' && (
-          <section className="mt-8 border border-black bg-white p-8">
+          <section className="mt-8 border border-black bg-white p-5 sm:p-8">
             <h2 className="font-display text-lg font-bold">Owner Details</h2>
             {user.ownerProfile ? (
               <div className="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2">
