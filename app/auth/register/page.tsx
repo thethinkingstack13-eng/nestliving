@@ -143,7 +143,7 @@ export default function RegisterPage() {
               type="text"
               value={formData.fullName}
               onChange={(e) => updateField('fullName', e.target.value)}
-              placeholder="Anam Khan"
+              placeholder="Chikki Gupta"
               className="w-full border border-black bg-[#FAFAFA] px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-black"
             />
             {errors.fullName && (
