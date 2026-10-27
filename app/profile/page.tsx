@@ -35,6 +35,9 @@ export default async function ProfilePage() {
 
       <div className="mx-auto max-w-3xl px-6 py-10 lg:px-10">
         {/* Header card */}
+
+{/* flex flex-col gap-5 border border-black bg-white p-5 shadow-[4px_4px_0px_0px_#000000] sm:flex-row sm:items-center sm:justify-between sm:p-8 sm:shadow-[6px_6px_0px_0px_#000000] */}
+
         <div className="flex items-center justify-between gap-4 border border-black bg-white p-8 shadow-[6px_6px_0px_0px_#000000]">
           <div className="flex items-center gap-4">
             <div className="flex h-16 w-16 items-center justify-center rounded-full border border-black bg-neutral-200 font-display text-xl font-bold">

@@ -1,243 +1,236 @@
-# NestLiving
+<div align="center">
 
-A Neo-Brutalist co-living space & roommate management platform, built with
-Next.js 14 (App Router), TypeScript, Tailwind CSS, Prisma, and MongoDB Atlas.
+# // NestLiving
 
-This build was verified end-to-end: `npm run build` compiles, type-checks,
-and statically prerenders every route with no errors.
+### Find the room. Find the right roommate. No brokers.
 
-## Stack
+A shared-living marketplace for India that brings **admin-reviewed listings**, **lifestyle-based roommate matching** and **transparent booking requests** into one place.
 
-- **Framework:** Next.js 14 (App Router)
-- **Language:** TypeScript (strict mode)
-- **Styling:** Tailwind CSS -- Neo-Brutalist design tokens in `tailwind.config.ts`
-- **Database:** Prisma ORM + MongoDB Atlas
-- **Validation:** Zod (`lib/validations.ts`)
-- **Icons:** lucide-react
+[Live demo](https://nestliving-ten.vercel.app/) · [Report a bug](../../issues) · [Request a feature](../../issues)
 
-## Prerequisites
+![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)
+![Prisma](https://img.shields.io/badge/Prisma-5-2D3748?logo=prisma)
+![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?logo=mongodb&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind-3-06B6D4?logo=tailwindcss&logoColor=white)
 
-- Node.js 18.18 or newer
-- A free [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) cluster
+</div>
 
-## 1. Install dependencies
+---
+
+## Table of contents
+
+- [Why NestLiving](#why-nestliving)
+- [Features](#features)
+- [How it works](#how-it-works)
+- [What makes it well built](#what-makes-it-well-built)
+- [Tech stack](#tech-stack)
+- [Getting started](#getting-started)
+- [Environment variables](#environment-variables)
+- [Deployment](#deployment)
+- [Project structure](#project-structure)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [Author](#author)
+
+---
+
+## Why NestLiving
+
+Finding shared accommodation is stressful, and the usual options are bad ones:
+
+| The problem | How NestLiving answers it |
+|---|---|
+| Brokers charge a fee and the listings are unclear | Owners list directly, and **every listing is reviewed by an admin** before it goes live |
+| Fake or stale listings | Only approved properties with real availability appear in search |
+| Moving in with a stranger whose habits clash with yours | A **0 to 100 compatibility score** based on cleanliness, noise, sleep schedule, smoking and pets |
+| Not knowing whether an owner has even seen your request | Every request has a **clear status** (pending, approved or rejected) and both sides get email updates |
+| Two people chasing the last bed | Booking approval is **race-safe**, so a bed can never be given away twice |
+| Worry about personal data | Government IDs are **encrypted at rest**, and passwords are hashed |
+
+**Built for** students and young professionals looking for rooms, and for PG and flat owners who want serious, verified tenants.
+
+---
+
+## Features
+
+### For tenants
+- Browse and search rooms with filters for location, budget, room type, gender preference and amenities, sorted by price or newest
+- Send a booking request with a move-in date and a message, and track its status from your dashboard
+- Create a lifestyle profile and get **ranked roommate recommendations** with a compatibility percentage
+- Send roommate connection requests
+- Upload a profile photo, and control which emails you receive
+
+### For owners
+- Owner onboarding with business details and government ID (stored encrypted)
+- Create listings with photos, rooms, bed counts, rent, deposit and availability date
+- Dashboard with occupancy rate, pending applications and booked rent
+- Review each tenant request and **approve or reject** it in one click
+
+### For admins
+- Review queue for new property listings (approve or reject)
+
+### Platform
+- Email verification and password reset
+- Reliable transactional email with automatic retries
+- Role-based access (Tenant, Owner, Admin) enforced on the server
+- Responsive, mobile-friendly interface
+
+---
+
+## How it works
+
+```mermaid
+sequenceDiagram
+    participant T as Tenant
+    participant N as NestLiving
+    participant O as Owner
+    participant A as Admin
+
+    O->>N: Submit a listing
+    A->>N: Review and approve
+    N-->>T: Listing appears in search
+    T->>N: Request a room (move-in date, message)
+    N-->>O: Booking request (dashboard and email)
+    O->>N: Approve or reject
+    N->>N: Reserve a bed atomically (DB transaction)
+    N-->>T: Decision by email
+```
+
+---
+
+## What makes it well built
+
+- **Race-safe bookings.** Approval runs inside a database transaction that decrements `availableBeds` only while it is above zero. Two owners or two clicks can never claim the last bed. A unique `(tenant, room)` constraint also prevents duplicate requests.
+- **Reliable email (outbox pattern).** Emails are written to a queue first, with bodies **encrypted with AES-256-GCM**, then sent with retries and backoff. A failed SMTP call never loses a message or breaks the user's request.
+- **Privacy by design.** Government IDs are encrypted at rest, and passwords use bcrypt. Registration answers the same way whether or not an email already exists, so it does not leak who has an account.
+- **Abuse protection.** Rate limiting is stored in the database, so it works across serverless instances.
+- **Server-side authorization.** Roles are checked in middleware and again in every protected page and API route, not just in the UI.
+- **Validated everywhere.** Zod schemas guard every API boundary and form.
+- **Search that scales.** Cursor pagination and compound indexes on the fields people filter by.
+- **Deterministic matching.** The compatibility engine is a pure, testable function with no hidden state.
+
+---
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| Framework | Next.js 14 (App Router), React, TypeScript (strict) |
+| Styling | Tailwind CSS, lucide-react icons |
+| Database | MongoDB Atlas with Prisma ORM |
+| Auth | `jose` JWT in httpOnly cookies, `bcryptjs` |
+| Validation | Zod |
+| Email | Nodemailer (SMTP) or Resend |
+| Images | Cloudinary (signed uploads) |
+| Hosting | Vercel |
+
+---
+
+## Getting started
+
+**Prerequisites:** Node.js 18.17 or newer, and a MongoDB Atlas cluster (a free tier is enough). Transactions require a replica set, which Atlas provides by default.
 
 ```bash
+# 1. Clone and install
+git clone https://github.com/thethinkingstack13-eng/nestliving.git
+cd nestliving
 npm install
-```
 
-`npm install` runs `prisma generate` automatically via the `postinstall` script.
-If that step fails on a restricted/offline network, skip it and run it
-manually once you have normal internet access:
+# 2. Configure environment variables
+cp .env.example .env        # then fill in the values (see the table below)
 
-```bash
-npm install --ignore-scripts
+# 3. Create the database collections and indexes
 npx prisma generate
-```
-
-## 2. Configure environment variables
-
-Copy the placeholder template, then enter real values in the ignored local
-`.env` file. Never place live credentials in `.env.example` or another tracked
-file.
-
-```bash
-cp .env.example .env
-```
-
-```
-DATABASE_URL="mongodb+srv://<username>:<password>@<cluster-url>/nestliving?retryWrites=true&w=majority"
-JWT_SECRET="<a long random string>"
-APP_URL="https://your-domain.example"
-RESEND_API_KEY="<resend-api-key>"
-EMAIL_OUTBOX_ENCRYPTION_KEY=""
-CRON_SECRET=""
-ADMIN_EMAIL=""
-ADMIN_PASSWORD=""
-OWNER_ID_ENCRYPTION_KEY=""
-CLOUDINARY_CLOUD_NAME=""
-CLOUDINARY_API_KEY=""
-CLOUDINARY_API_SECRET=""
-```
-
-Set the three Cloudinary values in `.env` and your deployment secret manager
-to enable signed property and roommate-photo uploads. The API secret is used
-only on the server; never expose it through a `NEXT_PUBLIC_` variable.
-
-Registration and password recovery require `DATABASE_URL`, `JWT_SECRET`,
-`RESEND_API_KEY`, `EMAIL_OUTBOX_ENCRYPTION_KEY`, and (in production) `APP_URL`.
-New accounts must verify their email before login. Auth request limits are
-stored in MongoDB and shared across server instances.
-
-Generate `OWNER_ID_ENCRYPTION_KEY` with `openssl rand -hex 32` and set it in
-your local environment and deployment secret manager. Back it up securely:
-losing this key makes stored owner IDs permanently unreadable. Owner IDs are
-encrypted before database writes and are not returned by the onboarding API.
-
-If the database already contains owner profiles created before this change,
-run this once after setting the encryption key:
-
-```bash
-npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/encrypt-owner-ids.ts
-```
-
-Before deploying email verification, capture a UTC cutoff, run `npx prisma db
-push`, and mark accounts created before that cutoff as already verified:
-
-```bash
-EMAIL_VERIFICATION_CUTOFF="2026-09-29T00:00:00.000Z" npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/backfill-email-verification.ts
-```
-
-To create the initial administrator, provide `ADMIN_EMAIL` and a unique
-`ADMIN_PASSWORD` of at least 16 characters to the seed command. Keep these
-values in your local environment or deployment secret manager; do not commit
-them to the repository. The seed will not promote an existing non-admin user.
-
-```bash
-read -r -s -p "Admin password: " ADMIN_PASSWORD
-printf '\n'
-export ADMIN_EMAIL="admin@example.com" ADMIN_PASSWORD
-npx prisma db seed
-```
-
-Generate a random `JWT_SECRET` by running this in any terminal:
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
-
-Generate `EMAIL_OUTBOX_ENCRYPTION_KEY` with `openssl rand -hex 32`; email HTML
-is encrypted before being saved in MongoDB. Set `APP_URL` to the public HTTPS
-origin and configure a random `CRON_SECRET` in both the app and your scheduler.
-Call `/api/cron/email-outbox` every few minutes with
-`Authorization: Bearer $CRON_SECRET`; queued mail is retried with backoff and
-eventually marked failed after repeated errors. Set `RESEND_API_KEY` to enable
-delivery. Keep every real value in ignored `.env` and deployment secrets.
-
-For existing accounts, push the new schema first, then run
-`EMAIL_VERIFICATION_CUTOFF=<ISO timestamp before deployment> npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/backfill-email-verification.ts`
-before deploying the verification requirement. This preserves accounts that
-already existed before the cutoff while newly registered users must verify.
-
-Get a free `RESEND_API_KEY` at [resend.com](https://resend.com) -- sign up,
-create an API key. No domain verification needed to start; emails send
-from `onboarding@resend.dev` until you verify your own domain.
-
-Make sure your Atlas project's **Network Access** allows connections from
-anywhere (`0.0.0.0/0`) so both your machine and your deployment host (e.g.
-Vercel) can reach it.
-
-## 3. Push the schema to your database
-
-MongoDB doesn't use SQL-style migrations the way Postgres does, so instead
-of `prisma migrate dev` you push the schema directly:
-
-```bash
 npx prisma db push
+
+# 4. (Optional) create the first admin account
+ADMIN_EMAIL="you@example.com" ADMIN_PASSWORD="a-long-random-passphrase" npx prisma db seed
+
+# 5. Run the app
+npm run dev                 # http://localhost:3214
 ```
 
-Run this after pulling schema changes so listing photos, room amenities,
-review states, auth/outbox collections, and roommate connection indexes exist
-in MongoDB. Run the same command in production before deploying code that
-depends on the new fields.
+Useful scripts: `npm run dev`, `npm run build`, `npm run start`.
 
-For existing listings and tenant profiles, rebuild the lower-case search-key
-columns once after the schema push:
+---
 
-```bash
-npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/backfill-search-keys.ts
-```
+## Environment variables
 
-This applies the schema in `prisma/schema.prisma`, including user/profile,
-property/room, booking, and roommate connection collections and indexes.
+| Variable | Required | Description |
+|---|---|---|
+| `DATABASE_URL` | Yes | MongoDB Atlas connection string |
+| `JWT_SECRET` | Yes | 32+ random characters (`openssl rand -base64 48`) |
+| `EMAIL_OUTBOX_ENCRYPTION_KEY` | Yes | 64 hex characters (`openssl rand -hex 32`) |
+| `OWNER_ID_ENCRYPTION_KEY` | Yes | 64 hex characters, **different** from the one above |
+| `CRON_SECRET` | Yes | Secret protecting the email-retry endpoint |
+| `APP_URL` | Yes (production) | Public site URL, for example `https://your-app.vercel.app`, without a trailing slash |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `EMAIL_FROM` | One email option | SMTP credentials (Gmail app password, Brevo and similar) |
+| `RESEND_API_KEY` | One email option | Alternative to SMTP |
+| `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET` | For uploads | Image storage |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Seeding only | Used by `prisma db seed`. Do **not** set these on the hosting platform. |
 
-## 4. Run the dev server
+> Never commit `.env`. Only `.env.example` belongs in the repository.
 
-```bash
-npm run dev
-```
+---
 
-Visit [http://localhost:3000](http://localhost:3000).
+## Deployment
+
+1. Push the repo to GitHub and import it in **Vercel** (framework preset: Next.js, leave the build command at its default).
+2. Add all environment variables above. Mark secrets as **Sensitive**.
+3. Deploy once, then set `APP_URL` to the live URL and **redeploy**.
+4. In MongoDB Atlas, allow network access from Vercel (Network Access).
+5. Seed the admin account from your own machine against the production database.
+6. For best latency, keep the Vercel function region and the Atlas cluster region close to each other.
+
+---
 
 ## Project structure
 
 ```
 app/
-├── layout.tsx                  Root layout -- loads fonts, wraps every page
-├── globals.css                 Tailwind entrypoint
-├── page.tsx                    Landing page (hero + nav)
-├── auth/register/page.tsx      Sign-up with tenant/owner role toggle
-├── onboarding/
-│   ├── tenant/page.tsx          Lifestyle profile setup
-│   └── owner/page.tsx           Owner verification setup
-├── rooms/page.tsx              Room search with filters
-├── roommates/page.tsx          Roommate discovery dashboard
-└── dashboard/
-    ├── owner/page.tsx           Stats, incoming requests, active listings
-    └── tenant/page.tsx          Submitted applications, recommended matches
-
-components/
-├── Navbar.tsx                  Site navigation
-├── RoomCard.tsx                Reusable room listing card
-├── RoommateCard.tsx            Reusable roommate profile card
-└── BookingRequestTable.tsx     Approve/reject table (exports `StatusBadge`)
-
-lib/
-├── prisma.ts                   Singleton Prisma client
-├── validations.ts              Shared Zod schemas
-└── compatibility.ts            Roommate matching algorithm
-
-prisma/
-└── schema.prisma               Database models (MongoDB)
+  api/            Route handlers (auth, bookings, rooms, roommates, uploads, cron)
+  auth/           Login, register, verify email, password reset
+  dashboard/      Tenant, owner and admin dashboards
+  onboarding/     Tenant and owner onboarding flows
+  rooms/          Room search
+  roommates/      Roommate discovery
+  profile/        Profile page
+  settings/       Account, password and notification settings
+components/       Reusable UI (Navbar, cards, tables, forms)
+lib/              Auth, sessions, validation, compatibility engine, email, rate limiting
+prisma/           Schema and seed script
+middleware.ts     Route protection and role checks
 ```
 
-## Current state -- what's mock vs. real
+---
 
-**Now real (backed by MongoDB):**
-- Registration (`/auth/register` -> `/api/auth/register`) -- creates a User,
-  hashes the password with bcrypt, sets a session cookie.
-- Login (`/auth/login` -> `/api/auth/login`) -- verifies credentials, sets a
-  session cookie, redirects by real role.
-- Logout (`/api/auth/logout`) -- clears the session cookie.
-- Tenant & owner onboarding (`/api/onboarding/tenant`, `/api/onboarding/owner`)
-  -- writes a `TenantProfile` / `OwnerProfile` linked to the logged-in user,
-  then redirects to the matching dashboard.
-- `/profile` -- shows the logged-in user's info and role-specific profile
-  details, reading directly from Prisma.
-- `/settings` -- account info (editable), password change, and **real
-  notification preferences saved per-user in the database**.
-- **Real email sending via Resend** -- a welcome email fires on
-  registration. Booking-request and roommate-match email templates are
-  pre-built in `lib/email.ts`, ready to wire in once those features exist
-  (see `app/api/user/notifications/route.ts` and Phase 9 notes below).
-- The Navbar checks `/api/auth/me` on every page and swaps the "LOG IN"
-  button for a profile dropdown (My Profile / Settings / Log Out) once
-  someone is signed in. It's now included on every page (previously it was
-  missing from `/rooms`, `/roommates`, both dashboards, and both onboarding
-  pages).
-- `/dashboard/*`, `/onboarding/*`, `/profile`, and `/settings` are protected
-  by `middleware.ts` -- visiting them without a valid session redirects to
-  `/auth/login`.
+## Roadmap
 
-Room search, roommate discovery, owner/tenant dashboards, property review,
-listing creation, booking requests, and booking decisions are backed by Prisma.
-New listings require admin approval. Booking approvals decrement available
-beds conditionally inside a MongoDB transaction, so the production database
-must support transactions (MongoDB Atlas replica sets do).
+- [ ] In-app notifications, and contact details shared once a request is accepted
+- [ ] Full profile editing with photo and phone verification (OTP)
+- [ ] Room detail pages with photo gallery
+- [ ] Cancel or withdraw a booking request
+- [ ] Saved rooms and alerts for new matching listings
+- [ ] Reviews, plus report and block tools
+- [ ] Installable PWA with push notifications
 
-## Known things to swap before shipping
+---
 
-- **Partner badges** on the landing page footer use placeholder names
-  (`STAYWELL`, `ROOMIO`, etc.) instead of real companies -- replace with
-  actual partners once you have them.
-- **Secrets:** configure `DATABASE_URL`, `JWT_SECRET`,
-  `OWNER_ID_ENCRYPTION_KEY`, and Cloudinary settings in the hosting provider's
-  secret manager. Never commit actual values to Git.
+## Contributing
 
-## Deploying to Vercel
+Contributions are welcome.
 
-1. Push this repo to GitHub.
-2. Import it into Vercel ("Add New Project" -> select the repo).
-3. Configure the required environment variables from `.env.example` in
-  Vercel's Environment Variables settings. Keep their values out of Git.
-4. Click Deploy. Every future push to the connected branch redeploys
-   automatically.
+1. Fork the repo and create a branch: `git checkout -b feature/your-feature`
+2. Commit your changes: `git commit -m "Add your feature"`
+3. Push and open a Pull Request
+
+Please keep changes focused and describe what you tested.
+
+---
+
+## Author
+
+**Designed and developed by [Avik Gupta](https://github.com/Avik-Idealprogrammer).**
+
+If you find NestLiving useful, consider giving it a star.
