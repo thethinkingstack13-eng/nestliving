@@ -135,6 +135,19 @@ export default function Navbar() {
                       <UserIcon size={15} strokeWidth={2} />
                       My Profile
                     </Link>
+
+
+                    {user.role === 'ADMIN' && (
+                      <Link
+                        href="/dashboard/admin"
+                        onClick={() => setProfileOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-3 text-sm font-medium hover:bg-neutral-100"
+                      >
+                        Admin Dashboard
+                      </Link>
+                    )}
+
+
                     <Link
                       href="/settings"
                       onClick={() => setProfileOpen(false)}
@@ -195,6 +208,19 @@ export default function Navbar() {
 
             {checked && user ? (
               <>
+
+
+                {user.role === 'ADMIN' && (
+                  <Link
+                    href="/dashboard/admin"
+                    onClick={() => setMobileOpen(false)}
+                    className="px-6 py-4 text-sm font-semibold tracking-wide text-black"
+                  >
+                    ADMIN DASHBOARD
+                  </Link>
+                )}
+
+
                 <Link
                   href="/profile"
                   onClick={() => setMobileOpen(false)}
