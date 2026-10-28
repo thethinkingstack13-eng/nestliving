@@ -61,6 +61,9 @@ export default function BookingRequestButton({ roomId }: { roomId: string }) {
       </label>
       {error && <p role="alert" className="text-xs text-[#E11D48]">{error}</p>}
       <div className="flex gap-2">
+        <p className="text-xs text-neutral-600">
+          By sending this request you agree to share your name, phone number and profile with the owner.
+        </p>
         <button type="submit" disabled={isSending} className="flex-1 bg-black px-3 py-2 text-xs font-bold text-white disabled:opacity-50">{isSending ? 'SENDING…' : 'SEND REQUEST'}</button>
         <button type="button" onClick={() => setIsOpen(false)} className="border border-black px-3 py-2 text-xs font-bold">CANCEL</button>
       </div>

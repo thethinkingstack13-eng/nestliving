@@ -117,16 +117,64 @@ export function passwordResetHtml(resetUrl: string): string {
   `;
 }
 
-export function bookingRequestEmailHtml(ownerName: string, tenantName: string, roomTitle: string): string {
+export interface BookingRequestEmailDetails {
+  ownerName: string;
+  tenantName: string;
+  tenantEmail: string;
+  tenantPhone?: string | null;
+  occupation?: string | null;
+  budget?: string | null;
+  preferredLocation?: string | null;
+  bio?: string | null;
+  roomTitle: string;
+  moveInDate: string;
+  requestedAt: string;
+  message?: string | null;
+  dashboardUrl: string;
+}
+
+export function bookingRequestEmailHtml(d: BookingRequestEmailDetails): string {
+  const row = (label: string, value?: string | null) =>
+    value
+      ? `<tr><td style="padding:6px 14px 6px 0;color:#666;vertical-align:top;">${label}</td><td style="padding:6px 0;"><strong>${escapeHtml(value)}</strong></td></tr>`
+      : '';
+  return `
+    <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto;">
+      <p style="font-weight: bold;">// NestLiving</p>
+      <h1 style="font-size: 22px;">New booking request</h1>
+      <p>Hi ${escapeHtml(d.ownerName)}, ${escapeHtml(d.tenantName)} has requested <strong>${escapeHtml(d.roomTitle)}</strong>.</p>
+      <table style="border-collapse: collapse; font-size: 14px;">
+        ${row('Name', d.tenantName)}${row('Phone', d.tenantPhone)}${row('Email', d.tenantEmail)}
+        ${row('Occupation', d.occupation)}${row('Budget', d.budget)}${row('Preferred area', d.preferredLocation)}
+        ${row('Move-in', d.moveInDate)}${row('Requested on', d.requestedAt)}${row('Message', d.message)}${row('About', d.bio)}
+      </table>
+      <p><a href="${escapeHtml(d.dashboardUrl)}">Review and approve or reject</a></p>
+    </div>
+  `;
+}
+
+export function bookingDecisionEmailHtml(d: {
+  tenantName: string;
+  roomTitle: string;
+  approved: boolean;
+  ownerName?: string | null;
+  ownerPhone?: string | null;
+  address?: string | null;
+  dashboardUrl: string;
+}): string {
+  const details = d.approved
+    ? `<p>The owner accepted your request. Contact details:</p>
+       <p><strong>${escapeHtml(d.ownerName ?? 'Owner')}</strong><br/>
+       ${d.ownerPhone ? `Phone: <strong>${escapeHtml(d.ownerPhone)}</strong><br/>` : ''}
+       ${d.address ? `Address: ${escapeHtml(d.address)}` : ''}</p>`
+    : `<p>The owner could not accept this request. You can send requests for other rooms.</p>`;
   return `
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
-      <p style="font-weight: bold; letter-spacing: -0.5px;">// NestLiving</p>
-      <h1 style="font-size: 22px;">New booking request</h1>
-      <p style="color: #444; line-height: 1.6;">
-        Hi ${escapeHtml(ownerName)}, ${escapeHtml(tenantName)} just requested to book
-        <strong>${escapeHtml(roomTitle)}</strong>. Log in to your dashboard to approve
-        or reject the request.
-      </p>
+      <p style="font-weight: bold;">// NestLiving</p>
+      <h1 style="font-size: 22px;">${d.approved ? 'Request accepted' : 'Request update'}</h1>
+      <p>Hi ${escapeHtml(d.tenantName)}, your request for <strong>${escapeHtml(d.roomTitle)}</strong> was ${d.approved ? 'accepted' : 'declined'}.</p>
+      ${details}
+      <p><a href="${escapeHtml(d.dashboardUrl)}">Open your dashboard</a></p>
     </div>
   `;
 }

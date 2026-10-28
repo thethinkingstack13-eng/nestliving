@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, X } from 'lucide-react';
+import { Check, X, ChevronDown } from 'lucide-react';
 
 export type BookingStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 
@@ -12,6 +12,13 @@ export interface BookingRequestRow {
   tenantEmail: string;
   roomTitle: string;
   moveInDate: string; // ISO date string
+  tenantPhone?: string;
+  occupation?: string;
+  budget?: string;
+  preferredLocation?: string;
+  bio?: string;
+  requestedAt: string; // when the tenant sent the request (ISO)
+  decidedAt?: string; // when the owner approved/rejected (ISO)
   compatibilityScore?: number;
   status: BookingStatus;
   message?: string;
@@ -57,11 +64,62 @@ function formatDate(iso: string): string {
   });
 }
 
+function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+// One labelled value in the details panel. Renders nothing if the value is empty.
+function Detail({ label, children }: { label: string; children?: React.ReactNode }) {
+  if (!children) return null;
+  return (
+    <div>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">{label}</p>
+      <div className="mt-0.5 break-words text-sm font-medium">{children}</div>
+    </div>
+  );
+}
+
+// Everything the owner needs BEFORE approving: who sent it, what, and when.
+function RequestDetails({ row }: { row: BookingRequestRow }) {
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <Detail label="Name">{row.tenantName}</Detail>
+      <Detail label="Phone">
+        {row.tenantPhone && (
+          <a href={`tel:${row.tenantPhone}`} className="underline">
+            {row.tenantPhone}
+          </a>
+        )}
+      </Detail>
+      <Detail label="Email">{row.tenantEmail}</Detail>
+      <Detail label="Occupation">{row.occupation}</Detail>
+      <Detail label="Budget">{row.budget}</Detail>
+      <Detail label="Preferred area">{row.preferredLocation}</Detail>
+      <Detail label="Room">{row.roomTitle}</Detail>
+      <Detail label="Move-in date">{formatDate(row.moveInDate)}</Detail>
+      <Detail label="Request sent">{formatDateTime(row.requestedAt)}</Detail>
+      <Detail label="Decision">
+        {row.decidedAt ? `${row.status} on ${formatDateTime(row.decidedAt)}` : 'Waiting for your decision'}
+      </Detail>
+      <Detail label="Message from tenant">{row.message}</Detail>
+      <Detail label="About the tenant">{row.bio}</Detail>
+    </div>
+  );
+}
+
 export default function BookingRequestTable({ requests, onStatusChange }: BookingRequestTableProps) {
   const router = useRouter();
   const [rows, setRows] = useState(requests);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Which request's details panel is open (only one at a time).
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const updateStatus = async (id: string, status: BookingStatus) => {
     if (status === 'CANCELLED' || updatingId) return;
@@ -79,7 +137,12 @@ export default function BookingRequestTable({ requests, onStatusChange }: Bookin
         const result = await response.json().catch(() => null);
         if (!response.ok) throw new Error(result?.message ?? 'Could not update the request.');
       }
-      setRows((prev) => prev.map((row) => (row.id === id ? { ...row, status } : row)));
+      // decidedAt is set locally too, so "Decision" shows the time immediately.
+      setRows((prev) =>
+        prev.map((row) =>
+          row.id === id ? { ...row, status, decidedAt: new Date().toISOString() } : row
+        )
+      );
       router.refresh();
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : 'Could not update the request.');
@@ -127,7 +190,8 @@ export default function BookingRequestTable({ requests, onStatusChange }: Bookin
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.id} className="border-b border-black last:border-b-0">
+              <Fragment key={row.id}>
+              <tr className="border-b border-black last:border-b-0">
                 {/* Tenant */}
                 <td className="px-5 py-4">
                   <div className="flex items-center gap-3">
@@ -165,6 +229,15 @@ export default function BookingRequestTable({ requests, onStatusChange }: Bookin
 
                 {/* Actions */}
                 <td className="border-l border-black px-5 py-4">
+                  <button
+                    type="button"
+                    onClick={() => setExpandedId(expandedId === row.id ? null : row.id)}
+                    aria-expanded={expandedId === row.id}
+                    className="mb-2 inline-flex items-center gap-1 text-xs font-bold underline"
+                  >
+                    {expandedId === row.id ? 'Hide details' : 'View details'}
+                    <ChevronDown size={13} className={expandedId === row.id ? 'rotate-180' : ''} />
+                  </button>
                   {row.status === 'PENDING' ? (
                     <div className="flex items-center gap-2">
                       <button
@@ -191,6 +264,15 @@ export default function BookingRequestTable({ requests, onStatusChange }: Bookin
                   )}
                 </td>
               </tr>
+              {/* Details row: opens right under the request, spans all 6 columns */}
+              {expandedId === row.id && (
+                <tr className="border-b border-black last:border-b-0">
+                  <td colSpan={6} className="bg-neutral-50 p-5">
+                    <RequestDetails row={row} />
+                  </td>
+                </tr>
+              )}
+              </Fragment>
             ))}
           </tbody>
         </table>
@@ -215,6 +297,22 @@ export default function BookingRequestTable({ requests, onStatusChange }: Bookin
 
             <p className="mt-3 text-sm">{row.roomTitle}</p>
             <p className="mt-1 text-xs text-neutral-500">Move-in: {formatDate(row.moveInDate)}</p>
+
+            <button
+              type="button"
+              onClick={() => setExpandedId(expandedId === row.id ? null : row.id)}
+              aria-expanded={expandedId === row.id}
+              className="mt-3 inline-flex min-h-[44px] items-center gap-1 text-xs font-bold underline"
+            >
+              {expandedId === row.id ? 'Hide details' : 'View details'}
+              <ChevronDown size={13} className={expandedId === row.id ? 'rotate-180' : ''} />
+            </button>
+            {expandedId === row.id && (
+              //mb ki jgah shyad mt-3 hoga
+              <div className="mb-2 border border-black bg-neutral-50 p-4">
+                <RequestDetails row={row} />
+              </div>
+            )}
 
             {row.compatibilityScore != null && row.compatibilityScore > 0 && <span className="mt-2 inline-flex items-center rounded-full border border-emerald-500 bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">
               {row.compatibilityScore}% Match

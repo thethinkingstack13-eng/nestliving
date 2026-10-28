@@ -43,20 +43,48 @@ export default async function OwnerDashboardPage() {
   const monthlyRevenue = approvedBookings.reduce((sum, booking) => sum + booking.room.rentPerMonth, 0);
 
   const requests = await prisma.bookingRequest.findMany({
-    where: { status: 'PENDING', room: { property: { ownerId: session.userId } } },
-    include: { tenant: { select: { name: true, email: true } }, room: { include: { property: true } } },
-    orderBy: { createdAt: 'asc' },
+    where: { room: { property: { ownerId: session.userId } } },
+    include: {
+      tenant: {
+        select: {
+          name: true,
+          email: true,
+          tenantProfile: {
+            select: { phone: true, occupation: true, bio: true, budgetMin: true, budgetMax: true, preferredLocation: true },
+          },
+        },
+      },
+      room: { include: { property: true } },
+    },
+    orderBy: { createdAt: 'desc' },
     take: 50,
   });
-  const requestRows: BookingRequestRow[] = requests.map((request) => ({
-    id: request.id,
-    tenantName: request.tenant.name ?? request.tenant.email,
-    tenantEmail: request.tenant.email,
-    roomTitle: request.room.property.title,
-    moveInDate: request.moveInDate.toISOString(),
-    status: request.status,
-    message: request.message ?? undefined,
-  }));
+  const requestRows: BookingRequestRow[] = requests
+    .map((request) => {
+      const profile = request.tenant.tenantProfile;
+      return {
+        id: request.id,
+        tenantName: request.tenant.name ?? request.tenant.email,
+        tenantEmail: request.tenant.email,
+        tenantPhone: profile?.phone ?? undefined,
+        occupation: profile?.occupation ?? undefined,
+        budget:
+          profile?.budgetMin != null && profile?.budgetMax != null
+            ? `₹${profile.budgetMin} – ₹${profile.budgetMax}/mo`
+            : undefined,
+        preferredLocation: profile?.preferredLocation ?? undefined,
+        bio: profile?.bio ?? undefined,
+        roomTitle: request.room.property.title,
+        moveInDate: request.moveInDate.toISOString(),
+        requestedAt: request.createdAt.toISOString(),
+        decidedAt: request.decidedAt?.toISOString(),
+        status: request.status,
+        message: request.message ?? undefined,
+      };
+    })
+    // Pending first, then the rest by newest.
+    .sort((a, b) => Number(b.status === 'PENDING') - Number(a.status === 'PENDING'));
+
 
   const stats = [
     { label: 'Listed Rooms', value: rooms.length.toLocaleString('en-IN'), icon: BedDouble },

@@ -41,6 +41,15 @@ enum BookingStatus {
   CANCELLED
 }
 
+enum NotificationType {
+  BOOKING_REQUEST_RECEIVED
+  BOOKING_APPROVED
+  BOOKING_REJECTED
+  ROOMMATE_REQUEST_RECEIVED
+  ROOMMATE_ACCEPTED
+  ROOMMATE_DECLINED
+}
+
 enum PropertyReviewStatus {
   PENDING
   APPROVED
@@ -92,6 +101,7 @@ model User {
   roommateRequestsSent     RoommateConnection[] @relation("RoommateRequestsSent")
   roommateRequestsReceived RoommateConnection[] @relation("RoommateRequestsReceived")
   authTokens AuthToken[]
+  notifications Notification[]
 
   @@map("users")
 }
@@ -213,6 +223,7 @@ model BookingRequest {
   status     BookingStatus @default(PENDING)
   moveInDate DateTime
   message    String?
+  decidedAt  DateTime?
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
 
@@ -226,11 +237,30 @@ model BookingRequest {
   @@map("booking_requests")
 }
 
+model Notification {
+  id        String           @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String           @db.ObjectId
+  type      NotificationType
+  title     String
+  body      String
+  link      String?
+  // Boolean on purpose (not "readAt DateTime?"): filtering a missing/null field
+  // in Prisma + MongoDB is the same trap as AuthToken.usedAt.
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt])
+  @@map("notifications")
+}
+
 model RoommateConnection {
   id          String           @id @default(auto()) @map("_id") @db.ObjectId
   requesterId String           @db.ObjectId
   targetId    String           @db.ObjectId
   status      ConnectionStatus @default(PENDING)
+  decidedAt   DateTime?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 

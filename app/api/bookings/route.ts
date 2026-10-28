@@ -6,6 +6,11 @@ import { createBookingSchema } from '@/lib/validations';
 import { queueEmail, dispatchEmailOutbox } from '@/lib/email-outbox';
 import { bookingRequestEmailHtml } from '@/lib/email';
 import { authConfigResponse } from '@/lib/auth-api';
+import { createNotification } from '@/lib/notifications';
+import { getApplicationUrl } from '@/lib/auth-tokens';
+
+const formatDate = (date: Date) =>
+  date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
 export async function GET() {
   const session = await getSession();
@@ -37,6 +42,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'Move-in date must be in the future.' }, { status: 400 });
   }
 
+
+
+
+  // Tenant details that the owner will see (name, phone, profile).
+  const tenant = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: {
+      name: true,
+      email: true,
+      tenantProfile: {
+        select: { phone: true, occupation: true, bio: true, budgetMin: true, budgetMax: true, preferredLocation: true },
+      },
+    },
+  });
+  if (!tenant) return NextResponse.json({ message: 'Account not found.' }, { status: 404 });
+  const tenantProfile = tenant.tenantProfile;
+  const tenantName = tenant.name ?? tenant.email;
+
+  // TURN THIS ON after Phase 3 (phone field in profile) so owners always get a contact number:
+  // if (!tenantProfile?.phone) {
+  //   return NextResponse.json({ message: 'Add your phone number in your profile first, so the owner can contact you.' }, { status: 400 });
+  // }
   const room = await prisma.room.findFirst({
     where: {
       id: result.data.roomId,
@@ -88,15 +115,43 @@ export async function POST(request: Request) {
         });
       }
 
+      const moveIn = new Date(result.data.moveInDate);
+
+      // 1) In-app notification: always created.
+      await createNotification(
+        {
+          userId: room.property.ownerId,
+          type: 'BOOKING_REQUEST_RECEIVED',
+          title: `New request for ${room.property.title}`,
+          body: `${tenantName}${tenantProfile?.phone ? ` • ${tenantProfile.phone}` : ''} • move-in ${formatDate(moveIn)}`,
+          link: '/dashboard/owner',
+        },
+        transaction
+      );
+
+      // 2) Email: only if the owner kept booking emails switched on.
       if (room.property.owner.emailOnBookingRequests) {
-        const tenant = await transaction.user.findUnique({
-          where: { id: session.userId },
-          select: { name: true, email: true },
-        });
         await queueEmail(
           room.property.owner.email,
-          'New room booking request',
-          bookingRequestEmailHtml(room.property.owner.name ?? 'Owner', tenant?.name ?? tenant?.email ?? 'A tenant', room.property.title),
+          `New booking request for ${room.property.title}`,
+          bookingRequestEmailHtml({
+            ownerName: room.property.owner.name ?? 'Owner',
+            tenantName,
+            tenantEmail: tenant.email,
+            tenantPhone: tenantProfile?.phone,
+            occupation: tenantProfile?.occupation,
+            budget:
+              tenantProfile?.budgetMin != null && tenantProfile?.budgetMax != null
+                ? `₹${tenantProfile.budgetMin} – ₹${tenantProfile.budgetMax}/mo`
+                : null,
+            preferredLocation: tenantProfile?.preferredLocation,
+            bio: tenantProfile?.bio,
+            roomTitle: room.property.title,
+            moveInDate: formatDate(moveIn),
+            requestedAt: formatDate(new Date()),
+            message: result.data.message,
+            dashboardUrl: new URL('/dashboard/owner', getApplicationUrl(request.url)).toString(),
+          }),
           transaction
         );
       }

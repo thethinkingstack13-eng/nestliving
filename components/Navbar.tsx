@@ -1,5 +1,5 @@
 'use client';
-
+import NotificationBell from '@/components/NotificationBell';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -102,7 +102,8 @@ export default function Navbar() {
         </div>
 
         {/* Right side */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
+          {checked && user && <NotificationBell />}
           {checked && user ? (
             <div ref={profileMenuRef} className="relative hidden sm:block">
               <button
