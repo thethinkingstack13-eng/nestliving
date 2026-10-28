@@ -63,6 +63,7 @@ async function sendViaSmtp({ to, subject, html }: SendEmailArgs): Promise<void> 
     to,
     subject,
     html,
+    text: html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
   });
 }
 
@@ -98,7 +99,7 @@ export function emailVerificationHtml(name: string, verificationUrl: string): st
   return `
     <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
       <p style="font-weight: bold;">// NestLiving</p>
-      <h1 style="font-size: 22px;">Verify your email</h1>
+      <h1 style="font-size: 22px;">Verify your NestLiving email</h1>
       <p>Hi ${escapeHtml(name)}, confirm this address to activate your account.</p>
       <p><a href="${escapeHtml(verificationUrl)}">Verify email address</a></p>
       <p>If you did not create this account, ignore this message.</p>
