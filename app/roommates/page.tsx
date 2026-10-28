@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ChevronDown, Search, Wallet } from 'lucide-react';
+import { ChevronDown, Search, Wallet, Filter } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import RoommateCard, { type RoommateLifestyleParams } from '@/components/RoommateCard';
 import { calculateCompatibility, type LifestyleProfile } from '@/lib/compatibility';
@@ -38,6 +38,7 @@ function isLifestyleProfile(value: unknown): value is LifestyleProfile {
 }
 
 export default function RoommatesPage() {
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [location, setLocation] = useState('');
   const [maxBudget, setMaxBudget] = useState('');
   const [minimumScore, setMinimumScore] = useState('0');
@@ -58,25 +59,25 @@ export default function RoommatesPage() {
       setIsLoading(true);
       setError(null);
       fetch(`/api/roommates?${query}`, { signal: controller.signal })
-      .then(async (response) => {
-        const result = await response.json() as RoommateResponse & { message?: string };
-        if (!response.ok) throw new Error(result.message ?? 'Could not load roommate profiles.');
-        if (!isLifestyleProfile(result.currentProfile)) throw new Error('Complete your lifestyle profile to view matches.');
-        setCurrentProfile(result.currentProfile);
-        setRequestedUserIds(result.requestedUserIds);
-        setNextCursor(result.nextCursor);
+        .then(async (response) => {
+          const result = await response.json() as RoommateResponse & { message?: string };
+          if (!response.ok) throw new Error(result.message ?? 'Could not load roommate profiles.');
+          if (!isLifestyleProfile(result.currentProfile)) throw new Error('Complete your lifestyle profile to view matches.');
+          setCurrentProfile(result.currentProfile);
+          setRequestedUserIds(result.requestedUserIds);
+          setNextCursor(result.nextCursor);
 
-        const mapped: Roommate[] = result.roommates.flatMap((person) => {
-          if (!isLifestyleProfile(person.lifestyleParams)) return [];
-          return [{ ...person, avatarUrl: person.avatarUrl ?? undefined, lifestyleParams: person.lifestyleParams }];
-        });
-        setRoommates(mapped);
-      })
-      .catch((loadError: unknown) => {
-        if (loadError instanceof Error && loadError.name === 'AbortError') return;
-        setError(loadError instanceof Error ? loadError.message : 'Could not load roommate profiles.');
-      })
-      .finally(() => setIsLoading(false));
+          const mapped: Roommate[] = result.roommates.flatMap((person) => {
+            if (!isLifestyleProfile(person.lifestyleParams)) return [];
+            return [{ ...person, avatarUrl: person.avatarUrl ?? undefined, lifestyleParams: person.lifestyleParams }];
+          });
+          setRoommates(mapped);
+        })
+        .catch((loadError: unknown) => {
+          if (loadError instanceof Error && loadError.name === 'AbortError') return;
+          setError(loadError instanceof Error ? loadError.message : 'Could not load roommate profiles.');
+        })
+        .finally(() => setIsLoading(false));
     }, 250);
     return () => { clearTimeout(timer); controller.abort(); };
   }, [location, maxBudget]);
@@ -114,7 +115,7 @@ export default function RoommatesPage() {
     }))
     .filter((roommate) => roommate.compatibilityScore >= Number(minimumScore))
     .sort((left, right) => right.compatibilityScore - left.compatibilityScore),
-  [roommates, currentProfile, minimumScore]);
+    [roommates, currentProfile, minimumScore]);
 
   return (
     <main className="min-h-screen bg-[#FAFAFA] text-black">
@@ -124,24 +125,68 @@ export default function RoommatesPage() {
           <h1 className="font-display text-3xl font-bold leading-tight sm:text-4xl">Find Compatible Roommates</h1>
           <p className="mt-2 text-sm text-neutral-600">Profiles and photos are shared by tenants who completed their match profile.</p>
         </div>
-        <div className="flex flex-col gap-4 border-b border-black py-6 lg:flex-row">
-          <label className="flex flex-1 items-center border border-black px-3">
-            <Search size={16} className="text-neutral-500" />
-            <input value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Search by location" className="w-full bg-transparent px-2.5 py-2.5 text-sm outline-none" />
-          </label>
-          <label className="flex items-center border border-black px-3 lg:w-56">
-            <Wallet size={16} className="text-neutral-500" />
-            <input type="number" min="0" value={maxBudget} onChange={(event) => setMaxBudget(event.target.value)} placeholder="Max budget (₹/mo)" className="w-full bg-transparent px-2.5 py-2.5 text-sm outline-none" />
-          </label>
-          <label className="relative flex items-center border border-black px-3 lg:w-52">
-            <select value={minimumScore} onChange={(event) => setMinimumScore(event.target.value)} className="w-full appearance-none bg-transparent py-2.5 text-sm font-semibold outline-none">
-              <option value="0">All matches</option>
-              <option value="70">70% or higher</option>
-              <option value="85">85% or higher</option>
-            </select>
-            <ChevronDown size={14} className="pointer-events-none" />
-          </label>
+
+        <div className="border-b border-black py-6">
+          {/* Mobile-only Filters button */}
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((open) => !open)}
+            aria-expanded={filtersOpen}
+            className="mb-4 flex w-full items-center justify-between border border-black px-4 py-3 text-sm font-bold lg:hidden"
+          >
+            <span className="flex items-center gap-2">
+              <Filter size={16} />
+              FILTERS
+            </span>
+            <ChevronDown
+              size={16}
+              className={`transition-transform ${filtersOpen ? 'rotate-180' : ''
+                }`}
+            />
+          </button>
+
+          {/* Hidden on mobile until clicked; always visible on desktop */}
+          <div
+            className={`${filtersOpen ? 'flex' : 'hidden'
+              } flex-col gap-4 lg:flex lg:flex-row`}
+          >
+            <label className="flex flex-1 items-center border border-black px-3">
+              <Search size={16} className="text-neutral-500" />
+              <input
+                value={location}
+                onChange={(event) => setLocation(event.target.value)}
+                placeholder="Search by location"
+                className="w-full bg-transparent px-2.5 py-2.5 text-sm outline-none"
+              />
+            </label>
+
+            <label className="flex items-center border border-black px-3 lg:w-56">
+              <Wallet size={16} className="text-neutral-500" />
+              <input
+                type="number"
+                min="0"
+                value={maxBudget}
+                onChange={(event) => setMaxBudget(event.target.value)}
+                placeholder="Max budget (₹/mo)"
+                className="w-full bg-transparent px-2.5 py-2.5 text-sm outline-none"
+              />
+            </label>
+
+            <label className="relative flex items-center border border-black px-3 lg:w-52">
+              <select
+                value={minimumScore}
+                onChange={(event) => setMinimumScore(event.target.value)}
+                className="w-full appearance-none bg-transparent py-2.5 text-sm font-semibold outline-none"
+              >
+                <option value="0">All matches</option>
+                <option value="70">70% or higher</option>
+                <option value="85">85% or higher</option>
+              </select>
+              <ChevronDown size={14} className="pointer-events-none" />
+            </label>
+          </div>
         </div>
+
         {error && <div className="mt-8 border border-black p-8 text-center"><p role="alert" className="text-sm text-[#E11D48]">{error}</p><Link href="/onboarding/tenant" className="mt-3 inline-block font-semibold underline">Complete your profile</Link></div>}
         {isLoading ? <p className="mt-8 text-sm text-neutral-600">Loading roommate profiles…</p> : !error && (
           <>
